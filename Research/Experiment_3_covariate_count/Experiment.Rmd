@@ -1,11 +1,11 @@
 ---
-title: "Knockoff_method_experiment2"
+title: "Experiment3"
 author: "Mark Milner"
-date: "2025-01-19"
+date: "2025-01-31"
 output: html_document
 ---
 
-This experiment considers changing the number of truly relevant covariates
+This experiment considers changing the number of covatiates included in the model.
 
 ```{r}
 library(knockoff)
@@ -49,11 +49,11 @@ generate_synthetic_data <- function(n=1000, p=1000, relevant_count=100, amplitud
 # Implimentation 
 
 ```{r}
-relevant_counts = c(50,100,200,500,1000)
+covariate_counts = c(100,200,500,1000)
 fdp_s = c()
 power_s = c()
-for (relevant_count in relevant_counts){
-  data <- generate_synthetic_data(relevant_count=relevant_count)
+for (covariate_count in covariate_counts){
+  data <- generate_synthetic_data(p=covariate_count)
   X <- data$X
   y <- data$y
   beta = data$beta
@@ -64,16 +64,19 @@ for (relevant_count in relevant_counts){
   power_s = c(power_s, current_power)
 }
 ```
-# Visualisation
+
+# visualisation 
 
 ```{r}
-plot(relevant_counts, fdp_s, type = "o", col = "red", pch = 16, lty = 1,
-     xlab = "truely relevant count", ylab = "FDP",
-     main = "FDP vs number of relevant variables")
+plot(covariate_counts, fdp_s, type = "o", col = "red", pch = 16, lty = 1,
+     xlab = "p", ylab = "FDP",
+     main = "FDP vs number of covariates (p)")
 
-plot(relevant_counts, power_s, type = "o", col = "blue", pch = 16, lty = 1,
-     xlab = "truely relevant count", ylab = "Power",
-     main = "Power vs number of relevant variables")
-
+plot(covariate_counts, power_s, type = "o", col = "blue", pch = 16, lty = 1,
+     xlab = "p", ylab = "Power",
+     main = "Power vs number of covariates (p)")
 ```
+
+
+
 

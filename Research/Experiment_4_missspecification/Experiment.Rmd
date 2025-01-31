@@ -1,0 +1,110 @@
+---
+title: "Experiment4"
+author: "Mark Milner"
+date: "2025-01-31"
+output: html_document
+---
+
+This experiment will consider miss-specification. Here, we keep the algorithm with the gaussian assumption i.e. we don't change anything in regards to the construction of the knockoffs. However, we construct out covariate data in a new way.
+
+```{r}
+library(knockoff)
+```
+
+```{r}
+fdp = function(selected) sum(beta[selected] == 0) / max(1, length(selected))
+```
+
+```{r}
+power = function(selected) {
+  # True Positives: selected variables with non-zero coefficients
+  TP = sum(beta[selected] != 0)
+  
+  # Total Relevant Variables
+  T = sum(beta != 0)
+  
+  # Compute Power
+  TP / T
+}
+```
+
+## Data Setup 
+
+```{r}
+set.seed(21)
+```
+
+```{r}
+generate_synthetic_data <- function(n=1000, p=1000, relevant_count=100, amplitude=4.5, rho=0.25, lambda) {
+  mu = rep(0,p)
+  Sigma = toeplitz(rho^(0:(p-1)))
+  pre_cor_X = matrix(0,n,p)
+  for (j in 1:p){
+    if (runif(1) < lambda){
+       for (i in 1:n){
+         pre_cor_X[i,j] = rt(1,df=3)
+    }}
+    else {
+       for (i in 1:n){
+         pre_cor_X[i,j] = rnorm(1)
+      }
+    }
+  }
+  X = pre_cor_X %*% chol(Sigma)
+  nonzero = sample(p, relevant_count)
+  beta = amplitude * (1:p %in% nonzero) / sqrt(n)
+  y =  X %*% beta + rnorm(n)
+  list(X = X, y = y, beta=beta)
+}
+```
+
+
+# Implimentation 
+
+```{r}
+x = seq(-5,5,length.out=10000)
+plot(x,dnorm(x),type='l',col='blue')
+lines(x,dt(x,df=3),col='red')
+legend('topright', legend=c('Normal(0,1)','t-distribution (df=3)'), col=c('blue','red'), lwd=2)
+```
+
+
+```{r}
+lambdas = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)
+fdp_s = c()
+power_s = c()
+for (lambda in lambdas){
+  data <- generate_synthetic_data(lambda=lambda)
+  X <- data$X
+  y <- data$y
+  beta = data$beta
+  result = knockoff.filter(X, y)
+  current_fdp = fdp(result$selected)
+  current_power = power(result$selected)
+  fdp_s = c(fdp_s, current_fdp)
+  power_s = c(power_s, current_power)
+}
+```
+
+# visualisation 
+
+```{r}
+plot(lambdas, fdp_s, type = "o", col = "red", pch = 16, lty = 1,
+     xlab = "lambda", ylab = "FDP",
+     main = "FDP vs lambda")
+
+plot(lambdas, power_s, type = "o", col = "blue", pch = 16, lty = 1,
+     xlab = "lambda", ylab = "Power",
+     main = "Power vs lambda")
+```
+
+
+
+
+
+
+
+
+
+
+

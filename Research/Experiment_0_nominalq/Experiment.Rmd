@@ -5,6 +5,8 @@ date: "2025-01-31"
 output: ''
 ---
 
+This experiment considers changing the prescribed accepted level of FDR.
+
 ```{r}
 library(knockoff)
 ```
@@ -79,3 +81,13 @@ plot(nominals, power_s, type = "o", col = "blue", pch = 16, lty = 1,
      main = "Power vs nominal q")
 
 ```
+If i were to run the experiment a large number of times, i would expect the FDP value to tend to the nominal level of q
+
+
+
+
+
+```{r}
+
+```
+

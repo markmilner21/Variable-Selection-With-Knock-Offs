@@ -10,12 +10,6 @@ This experiment considers the number of samples (rows). A larger sample would su
 ```{r}
 library(knockoff)
 ```
-```{r}
-library(doParallel)             # Load the package
-numCores = detectCores()
-print(numCores)
-registerDoParallel(cores=numCores)
-```
 
 ```{r}
 fdp = function(selected, beta) {
@@ -76,13 +70,6 @@ for (n in n_s) {
 }
 ```
 
-
-
-
-
-
-
-
 ```{r}
 fdp_s
 ```
@@ -90,12 +77,9 @@ fdp_s
 ```{r}
 power_s
 ```
-
 # Results visualisation 
 
 ## Simple FDR and power plots
-
-We can start by simply plotting our n's on the x-axis and our performance metric on the y-axis 
 
 ```{r}
 plot(n_s, fdp_s, type = "o", col = "red", pch = 16, lty = 1,

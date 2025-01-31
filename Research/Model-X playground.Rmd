@@ -19,7 +19,7 @@ set.seed(21)
 
 ### Defining our problem parameters
 ```{r}
-n = 1000 # Suppose that we have 1000 rows of data, each independent from the others
+n = 10000 # Suppose that we have 1000 rows of data, each independent from the others
 p = 1000 # Suppose that we have 1000 columns corresponding to 1000 covariates. Since we are implimenting Model-X knockoffs, we are not bound by any constraints concerning the relationship between n and p (namely n >= 2p)
 
 relevant_count = 60 # Suppose that the total number of relevant variables is 60
