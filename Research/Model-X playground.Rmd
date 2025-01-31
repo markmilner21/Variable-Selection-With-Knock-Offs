@@ -196,6 +196,16 @@ power(result_knockoff_construction1$selected)
 power(result_knockoff_construction2$selected)
 
 ```
+
+
+```{r}
+fdp(result_default$selected)
+power(result_default$selected)
+```
+
+
+
+
 ### Visualisation
 
 ```{r}

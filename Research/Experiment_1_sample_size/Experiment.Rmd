@@ -5,18 +5,26 @@ date: "2025-01-19"
 output: html_document
 ---
 
-This experiment considers the number of samples (rows). larger sample means moe info about the population more precice estimates of model parameters. 
+This experiment considers the number of samples (rows). A larger sample would suggest more info about the population and more precise estimates of model parameters.
 
 ```{r}
 library(knockoff)
 ```
-
 ```{r}
-fdp = function(selected) sum(beta[selected] == 0) / max(1, length(selected))
+library(doParallel)             # Load the package
+numCores = detectCores()
+print(numCores)
+registerDoParallel(cores=numCores)
 ```
 
 ```{r}
-power = function(selected) {
+fdp = function(selected, beta) {
+  sum(beta[selected] == 0) / max(1, length(selected))
+}
+```
+
+```{r}
+power = function(selected, beta) {
   # True Positives: selected variables with non-zero coefficients
   TP = sum(beta[selected] != 0)
   
@@ -31,90 +39,73 @@ power = function(selected) {
 ## Data Setup 
 
 ```{r}
-set.seed(21)
+#set.seed(21)
 ```
 
 ```{r}
-generate_synthetic_data <- function(n, p, relevant_count, amplitude, rho) {
-  # Generating the covariance matrix Sigma
-  mu <- rep(0, p)
-  Sigma <- toeplitz(rho^(0:(p-1)))
-  # Generating the covariate data matrix X
-  X <- matrix(rnorm(n * p), n) %*% chol(Sigma)
-  # Identifying relevant variables
-  nonzero <- sample(p, relevant_count)
-  # Generating coefficients for the linear model
-  beta <- amplitude * (1:p %in% nonzero) / sqrt(n)
-  # Function to generate target variable y
-  # Generating the target data
-  y <- y.sample(X)
-  # Returning the design matrix X and target y
-  list(X = X, y = y)
+generate_synthetic_data <- function(n=1000, p=1000, relevant_count=100, amplitude=4.5, rho=0.25) {
+  mu = rep(0,p)
+  Sigma = toeplitz(rho^(0:(p-1)))
+  X = matrix(rnorm(n*p),n) %*% chol(Sigma)
+  nonzero = sample(p, relevant_count)
+  beta = amplitude * (1:p %in% nonzero) / sqrt(n)
+  y =  X %*% beta + rnorm(n)
+  list(X = X, y = y, beta=beta)
 }
 
-y.sample <- function(X) X %*% beta + rnorm(n)
+```
 
+# Implimentation
+
+To implement this, we'll just iterate through a list of values. 
+
+```{r}
+n_s <- c(1000,2000,3000,4000,5000,6000,7000,8000,9000,10000)
+fdp_s = c()
+power_s = c()
+for (n in n_s) {
+  data <- generate_synthetic_data(n=n)
+  X_n <- data$X
+  y_n <- data$y
+  beta_n <- data$beta
+  result = knockoff.filter(X_n, y_n)
+  current_fdp = fdp(result$selected,beta_n)
+  current_power = power(result$selected,beta_n)
+  fdp_s = c(fdp_s,current_fdp)
+  power_s = c(power_s,current_power)
+}
 ```
 
 
+
+
+
+
+
+
 ```{r}
-n <- 1000
-p <- 1000
-relevant_count <- 60
-amplitude <- 4.5
-rho <- 0.25
-data <- generate_synthetic_data(n, p, relevant_count, amplitude, rho)
-X <- data$X
-y <- data$y
-result_default = knockoff.filter(X, y)
-result_default$selected
-fdp(result_default$selected)
-power(result_default$selected)
+fdp_s
 ```
 
 ```{r}
-n <- 1000
-p <- 1000
-relevant_count <- 60
-amplitude <- 4.5
-rho <- 0.25
-data <- generate_synthetic_data(n, p, relevant_count, amplitude, rho)
-X <- data$X
-y <- data$y
-result_default = knockoff.filter(X, y)
-result_default$selected
-fdp(result_default$selected)
-power(result_default$selected)
+power_s
 ```
 
-```{r}
-n <- 5000
-p <- 1000
-relevant_count <- 60
-amplitude <- 4.5
-rho <- 0.25
-data <- generate_synthetic_data(n, p, relevant_count, amplitude, rho)
-X_large_n <- data$X
-y_large_n <- data$y
-result_large_n = knockoff.filter(X, y)
-result_large_n$selected
-fdp(result_large_n$selected)
-power(result_largen$selected)
-```
+# Results visualisation 
+
+## Simple FDR and power plots
+
+We can start by simply plotting our n's on the x-axis and our performance metric on the y-axis 
 
 ```{r}
-n <- 10000
-p <- 1000
-relevant_count <- 60
-amplitude <- 4.5
-rho <- 0.25
-data <- generate_synthetic_data(n, p, relevant_count, amplitude, rho)
-X_larger_n <- data$X
-y_larger_n <- data$y
-result_larger_n = knockoff.filter(X, y)
-result_larger_n$selected
-fdp(result_larger_n$selected) # did we think some variables were truely relevant when they weren't in reality.
-power(result_larger_n$selected) # did we collect all the truely relevant variables
+plot(n_s, fdp_s, type = "o", col = "red", pch = 16, lty = 1,
+     xlab = "n", ylab = "FDP",
+     main = "FDP vs number of rows (n)")
+
+plot(n_s, power_s, type = "o", col = "blue", pch = 16, lty = 1,
+     xlab = "n", ylab = "Power",
+     main = "Power vs number of rows (n)")
+
 ```
 
 
