@@ -1,0 +1,376 @@
+---
+title: "Varying_pred_amplitdue"
+author: "Mark Milner"
+date: "2025-02-19"
+output: html_document
+---
+
+```{r}
+library(glmnet) # is needed for the linear interaction KO filter 
+#library(grf) # is needed for the causal forest (CF) variable importance KO filter 
+library(knockoff) # is needed for generating the knockoffs and calculating the threshold
+source("C:\\Users\\markm\\OneDrive\\Documents\\University\\Year 4\\Project\\Software\\Variable-Selection-With-Knock-Offs\\Research\\Biomarker Simulation Study\\biomarker_functions.R")
+
+```
+
+```{r}
+synthetic_data = generate_scenarios_predictive(scenario = 'S1', model = 'M6', 
+sample_size = 1000, num_features = 1000, predictive_amplitude = 1)
+paste('In this synthetic dataset the following variables are predictive:', 
+paste(synthetic_data$predictive, collapse=","))
+```
+
+# experiment 
+
+```{r}
+predictive_amplitudes = c(0,0.01,0.2,0.4,0.6,0.8,1)
+results_fdp_pred = c()
+results_power_pred = c()
+q = 0.1
+```
+
+```{r}
+for (pred_amp in predictive_amplitudes){
+  synthetic_data = generate_scenarios_predictive(scenario = 'S1', model = 'M6', sample_size = 1000, num_features = 1000, predictive_amplitude = pred_amp)
+  X_tilde = data.frame(create.second_order(as.matrix(synthetic_data$X)))
+  paste('pred amp', pred_amp)
+  paste('In this synthetic dataset the following variables are predictive:', paste(synthetic_data$predictive, collapse=","))
+  selected_with_linear_filter = linear_model_predictive_filter(synthetic_data$X, X_tilde, synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+  power_result = power(selected_with_linear_filter, synthetic_data$predictive)
+  fdp_result = fdp(selected_with_linear_filter, synthetic_data$predictive )
+  results_fdp_pred = c(results_fdp_pred, fdp_result)
+  results_power_pred = c(results_power_pred, power_result)
+}
+```
+
+
+
+
+```{r}
+plot(predictive_amplitudes, results_fdp_pred, type = "o", col = "red", pch = 16, lty = 1, 
+     ylim = c(0, 0.5),
+     xlab = "Predictive amplitude", ylab = "FDP",
+     main = "Predictive amplitude vs FDP")
+
+# Add a dashed horizontal line at y = 0.1
+abline(h = 0.1, lty = 2, col = "black") 
+
+plot(predictive_amplitudes, results_power_pred, type = "o", col = "blue", pch = 16, lty = 1,
+     xlab = "Predictive amplitude", ylab = "Power",
+     main = "Predictive amplitude vs Power")
+
+```
+
+# experiment 2
+
+# performing some random combos - test 1
+
+```{r}
+#predictive_amplitudes_high = c(0.6,0.7,0.8)
+#predictive_amplitudes_mod = c(0.2,0.3,0.4)
+#predictive_amplitudes_low = c(0.05,0.1,0.15)
+pah = 0.7
+pam = 0.3
+pal = 0.05
+results_fdp_pred = c()
+results_power_pred = c()
+q = 0.1
+synthetic_data = generate_scenarios_predictive(scenario = 'S3', model = 'M3', sample_size = 1000, num_features = 1000, predictive_amplitude = 1, predictive_amplitude_high = pah, predictive_amplitude_mod = pam, predictive_amplitude_low = pal)
+X_tilde = data.frame(create.second_order(as.matrix(synthetic_data$X)))
+paste('In this synthetic dataset the following variables are predictive:', paste(synthetic_data$predictive, collapse=","))
+selected_with_linear_filter = linear_model_predictive_filter(synthetic_data$X, X_tilde, synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+power_result = power(selected_with_linear_filter, synthetic_data$predictive)
+fdp_result = fdp(selected_with_linear_filter, synthetic_data$predictive )
+```
+
+```{r}
+num_low_selected <- sum(selected_with_linear_filter <= 25)
+num_mid_selected <- sum(selected_with_linear_filter > 25 & selected_with_linear_filter <= 75)
+num_high_selected = sum(selected_with_linear_filter > 75 & selected_with_linear_filter <= 100)
+# Compute the proportion
+proportion_of_lows_selected <- num_low_selected / 25
+proportion_of_mid_selected = num_mid_selected / 50
+proportion_of_high_selected = num_high_selected / 25
+print(paste("Proportion of lows selected", proportion_of_lows_selected))
+print(paste("Proportion of moderates selected", proportion_of_mid_selected))
+print(paste("Proportion of highs selected", proportion_of_high_selected))
+
+```
+
+
+# performing some random combos - test 2
+
+```{r}
+#predictive_amplitudes_high = c(0.6,0.7,0.8)
+#predictive_amplitudes_mod = c(0.2,0.3,0.4)
+#predictive_amplitudes_low = c(0.05,0.1,0.15)
+pah = 0.4
+pam = 0.1
+pal = 0.03
+results_fdp_pred = c()
+results_power_pred = c()
+q = 0.1
+synthetic_data = generate_scenarios_predictive(scenario = 'S3', model = 'M3', sample_size = 1000, num_features = 1000, predictive_amplitude = 1, predictive_amplitude_high = pah, predictive_amplitude_mod = pam, predictive_amplitude_low = pal)
+X_tilde = data.frame(create.second_order(as.matrix(synthetic_data$X)))
+paste('In this synthetic dataset the following variables are predictive:', paste(synthetic_data$predictive, collapse=","))
+selected_with_linear_filter = linear_model_predictive_filter(synthetic_data$X, X_tilde, synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+power_result = power(selected_with_linear_filter, synthetic_data$predictive)
+fdp_result = fdp(selected_with_linear_filter, synthetic_data$predictive )
+```
+
+```{r}
+num_low_selected <- sum(selected_with_linear_filter <= 25)
+num_mid_selected <- sum(selected_with_linear_filter > 25 & selected_with_linear_filter <= 75)
+num_high_selected = sum(selected_with_linear_filter > 75 & selected_with_linear_filter <= 100)
+# Compute the proportion
+proportion_of_lows_selected <- num_low_selected / 25
+proportion_of_mid_selected = num_mid_selected / 50
+proportion_of_high_selected = num_high_selected / 25
+print(paste("Proportion of lows selected", proportion_of_lows_selected))
+print(paste("Proportion of moderates selected", proportion_of_mid_selected))
+print(paste("Proportion of highs selected", proportion_of_high_selected))
+
+```
+```{r}
+# Define parameter values
+predictive_amplitudes_high <- c(0.5, 0.6, 0.7)
+predictive_amplitudes_mod <- c(0.2, 0.3, 0.4)
+predictive_amplitudes_low <- c(0.04, 0.08, 0.12)
+# extreme cases: 
+# 0.5,0.2,0.04
+# 
+
+
+# Initialize a dataframe to store results
+results <- data.frame(high = numeric(), mod = numeric(), low = numeric(), power = numeric(), fdp = numeric(), prop_h=numeric(), prop_m=numeric(), prop_l=numeric())
+
+# Set nominal FDR
+q <- 0.1
+
+# Iterate over all combinations of high, mod, and low amplitudes
+for (pah in predictive_amplitudes_high) {
+  for (pam in predictive_amplitudes_mod) {
+    for (pal in predictive_amplitudes_low) {
+      
+      # Print current parameter values
+      print(paste("Running with high =", pah, ", mod =", pam, ", low =", pal))
+      
+      # Generate synthetic data
+      synthetic_data <- generate_scenarios_predictive(
+        scenario = 'S3', model = 'M3', sample_size = 1000, num_features = 1000,
+        predictive_amplitude = 1, predictive_amplitude_high = pah,
+        predictive_amplitude_mod = pam, predictive_amplitude_low = pal
+      )
+      
+      # Create second-order features
+      X_tilde <- data.frame(create.second_order(as.matrix(synthetic_data$X)))
+      
+      # Apply predictive filter
+      selected_with_linear_filter <- linear_model_predictive_filter(
+        synthetic_data$X, X_tilde, synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian'
+      )
+      
+      # Compute power and FDP
+      power_result <- power(selected_with_linear_filter, synthetic_data$predictive)
+      fdp_result <- fdp(selected_with_linear_filter, synthetic_data$predictive)
+      
+      num_low_selected <- sum(selected_with_linear_filter <= 25)
+      num_mid_selected <- sum(selected_with_linear_filter > 25 & selected_with_linear_filter <= 75)
+      num_high_selected = sum(selected_with_linear_filter > 75 & selected_with_linear_filter <= 100)
+      #   Compute the proportion
+      proportion_of_lows_selected <- num_low_selected / 25
+      proportion_of_mid_selected = num_mid_selected / 50
+      proportion_of_high_selected = num_high_selected / 25
+      
+      
+      
+      # Store results
+      results <- rbind(results, data.frame(high = pah, mod = pam, low = pal, power = power_result, fdp = fdp_result, prop_h = proportion_of_high_selected, prop_m = proportion_of_mid_selected, prop_l = proportion_of_lows_selected))
+      
+      # Print results for current iteration
+    }
+  }
+}
+
+# Print final results dataframe
+print(results)
+
+```
+
+
+
+```{r}
+library(ggplot2)
+
+# Fix high amplitude and plot mod vs. low
+for (pah in predictive_amplitudes_high) {
+  subset <- results[results$high == pah, ]
+  
+  p <- ggplot(subset, aes(x = mod, y = power, color = as.factor(low))) +
+    geom_line() +
+    geom_point() +
+    labs(
+      title = paste("Power vs. Mod Amplitude (High =", pah, ")"),
+      x = "Mod Amplitude",
+      y = "Power",
+      color = "Low Amplitude"
+    ) +
+    theme_minimal()
+  
+  print(p)
+}
+
+```
+
+
+```{r}
+library(ggplot2)
+
+# Facet by high amplitude
+ggplot(results, aes(x = mod, y = power, color = as.factor(low))) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ high) +
+  labs(
+    title = expression(paste("Power vs. ", theta[pred]^m, " (Faceted by ", theta[pred]^h, ")")),
+    x = expression(theta[pred]^m),  # Use theta[pred]^m for mod amplitude
+    y = "Power",
+    color = expression(theta[pred]^l)  # Use theta[pred]^l for low amplitude
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(size = 12),  # Customize facet labels
+    axis.title.x = element_text(size = 12, margin = margin(t = 15)),  # Add space below x-axis title
+    axis.title.y = element_text(size = 12, margin = margin(r = 15)),  # Add space to the right of y-axis title
+    axis.text.x = element_text(margin = margin(t = 10)),  # Add space below x-axis labels
+    axis.text.y = element_text(margin = margin(r = 10)),  # Add space to the right of y-axis labels
+    legend.title = element_text(size = 12),  # Customize legend title
+    plot.margin = margin(20, 20, 20, 20),  # Increase overall plot margins (top, right, bottom, left)
+    panel.spacing.x = unit(1.5, "lines")  # Increase horizontal spacing between facet panels
+  )
+```
+
+
+```{r}
+library(ggplot2)
+
+# Facet by high amplitude
+ggplot(results, aes(x = mod, y = fdp, color = as.factor(low))) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ high) +
+  labs(
+    title = expression(paste("Power vs. ", theta[pred]^m, " (Faceted by ", theta[pred]^h, ")")),
+    x = expression(theta[pred]^m),  # Use theta[pred]^m for mod amplitude
+    y = "Power",
+    color = expression(theta[pred]^l)  # Use theta[pred]^l for low amplitude
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(size = 12),  # Customize facet labels
+    axis.title.x = element_text(size = 12, margin = margin(t = 15)),  # Add space below x-axis title
+    axis.title.y = element_text(size = 12, margin = margin(r = 15)),  # Add space to the right of y-axis title
+    axis.text.x = element_text(margin = margin(t = 10)),  # Add space below x-axis labels
+    axis.text.y = element_text(margin = margin(r = 10)),  # Add space to the right of y-axis labels
+    legend.title = element_text(size = 12),  # Customize legend title
+    plot.margin = margin(20, 20, 20, 20),  # Increase overall plot margins (top, right, bottom, left)
+    panel.spacing.x = unit(1.5, "lines")  # Increase horizontal spacing between facet panels
+  )
+```
+
+# experiment 3
+
+varying the percentage put into each group
+
+```{r}
+# Define parameter values
+pah = 0.5
+pam = 0.2
+pal = 0.04
+splits = list(c(10,10,80),c(10,80,10),c(80,10,10),c(25,25,50),c(25,50,25),c(50,25,25),c(33.333333,33.333333,33.333333))
+
+# Initialize a dataframe to store results
+results <- data.frame(low_perc = numeric(), mod_perc = numeric(), high_perc = numeric() , power = numeric(), fdp = numeric(), prop_h=numeric(), prop_m=numeric(), prop_l=numeric())
+
+# Set nominal FDR
+q <- 0.1
+
+# Iterate over all combinations of high, mod, and low amplitudes
+for (split in splits) {
+      # Print current parameter values
+  print(paste("Running with split low =", split[1], ", mod =", split[2], ", high =",split[3] ))
+  low = split[1]
+  mod = low + (100-split[3]-split[1])
+      
+      
+  # Generate synthetic data
+  synthetic_data <- generate_scenarios_predictive(
+  scenario = 'S3', model = 'M3_dash', sample_size = 1000, num_features = 1000,
+  predictive_amplitude = 1, predictive_amplitude_high = pah,
+  predictive_amplitude_mod = pam, predictive_amplitude_low = pal, first_split = low, second_split = mod)
+      
+      # Create second-order features
+  X_tilde <- data.frame(create.second_order(as.matrix(synthetic_data$X)))
+      
+      # Apply predictive filter
+  selected_with_linear_filter <- linear_model_predictive_filter(synthetic_data$X, X_tilde, synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+  
+      
+      # Compute power and FDP
+  power_result <- power(selected_with_linear_filter, synthetic_data$predictive)
+  fdp_result <- fdp(selected_with_linear_filter, synthetic_data$predictive)
+  print(selected_with_linear_filter)
+      
+  num_low_selected <- sum(selected_with_linear_filter <= low)
+  print(num_low_selected)
+  num_mid_selected <- sum(selected_with_linear_filter > low & selected_with_linear_filter <= mod)
+  print(num_mid_selected)
+  num_high_selected = sum(selected_with_linear_filter > mod & selected_with_linear_filter <= 100)
+  print(num_high_selected)
+      #   Compute the proportion
+  proportion_of_lows_selected <- num_low_selected / split[1]
+  proportion_of_mid_selected = num_mid_selected / split[2]
+  proportion_of_high_selected = num_high_selected / split[3]
+  
+  print(proportion_of_lows_selected)
+  print(proportion_of_mid_selected)
+  print(proportion_of_high_selected)
+      
+      
+      # Store results
+  results <- rbind(results, data.frame(low_perc = split[1], mod_perc = split[2], high_perc = split[3], power = power_result, fdp = fdp_result, prop_h = proportion_of_high_selected, prop_m = proportion_of_mid_selected, prop_l = proportion_of_lows_selected))
+      
+      # Print results for current iteration
+}
+
+# Print final results dataframe
+print(results)
+
+```
+
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Assuming `results` is already created as in your code
+
+# Reshape the data for plotting
+results_melted <- melt(results, id.vars = c("low_perc", "mod_perc", "high_perc"), measure.vars = c("power", "fdp"))
+
+# Create a unique label for each split
+results_melted$split_label <- paste0("Low: ", results_melted$low_perc, 
+                                     " | Mid: ", results_melted$mod_perc, 
+                                     " | High: ", results_melted$high_perc)
+
+# Generate the bar plot
+ggplot(results_melted, aes(x = split_label, y = value, fill = variable)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("power" = "blue", "fdp" = "red")) +
+  labs(title = "Power and FDP for Each Split", x = "Splits", y = "Power/FDP", fill = "Measure") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+
