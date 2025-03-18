@@ -86,6 +86,100 @@ plot(q_s, results_power_cf, type = "o", col = "blue", pch = 16, lty = 1,
 ```
 # Performing multiple iterations
 
+```{r}
+# Define nominal FDR values and number of repetitions
+q_s = c(0.01, 0.05, 0.1, 0.2, 0.5)  # Nominal FDR values
+num_reps = 5  # Number of repetitions per q
+
+# Initialize vectors to store results for Linear Model and Causal Forest
+fdp_means_lm = c()
+power_means_lm = c()
+fdp_ci_lower_lm = c()
+fdp_ci_upper_lm = c()
+power_ci_lower_lm = c()
+power_ci_upper_lm = c()
+
+fdp_means_cf = c()
+power_means_cf = c()
+fdp_ci_lower_cf = c()
+fdp_ci_upper_cf = c()
+power_ci_lower_cf = c()
+power_ci_upper_cf = c()
+
+# Generate synthetic data
+synthetic_data = generate_scenarios_predictive(scenario = 'S1', model = 'M6', 
+                                              sample_size = 1000, num_features = 1000, predictive_amplitude = 1)
+
+# Print predictive variables
+print(paste('In this synthetic dataset the following variables are predictive:', 
+            paste(synthetic_data$predictive, collapse = ",")))
+
+# Loop over nominal FDR values
+for (q in q_s) {
+  fdp_repeats_lm = c()
+  power_repeats_lm = c()
+  fdp_repeats_cf = c()
+  power_repeats_cf = c()
+  
+  # Repeat the experiment 5 times
+  for (i in 1:num_reps) {
+    # Create second-order knockoffs
+    X_tilde = data.frame(create.second_order(as.matrix(synthetic_data$X)))
+    
+    # Apply Linear Model Predictive Filter
+    selected_with_linear_filter = linear_model_predictive_filter(synthetic_data$X, X_tilde,
+                                                                synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+    current_fdp_lm = fdp(selected_with_linear_filter, synthetic_data$predictive)  # Compute FDP for Linear Model
+    current_power_lm = power(selected_with_linear_filter, synthetic_data$predictive)  # Compute Power for Linear Model
+    fdp_repeats_lm = c(fdp_repeats_lm, current_fdp_lm)
+    power_repeats_lm = c(power_repeats_lm, current_power_lm)
+    
+    # Apply Causal Forest Predictive Filter
+    selected_with_cf_filter = causal_forest_predictive_filter(synthetic_data$X, X_tilde,
+                                                              synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+    current_fdp_cf = fdp(selected_with_cf_filter, synthetic_data$predictive)  # Compute FDP for Causal Forest
+    current_power_cf = power(selected_with_cf_filter, synthetic_data$predictive)  # Compute Power for Causal Forest
+    fdp_repeats_cf = c(fdp_repeats_cf, current_fdp_cf)
+    power_repeats_cf = c(power_repeats_cf, current_power_cf)
+  }
+  
+  # Compute mean and confidence intervals for Linear Model
+  mean_fdp_lm = mean(fdp_repeats_lm)
+  mean_power_lm = mean(power_repeats_lm)
+  sd_fdp_lm = sd(fdp_repeats_lm)
+  sd_power_lm = sd(power_repeats_lm)
+  se_fdp_lm = sd_fdp_lm / sqrt(num_reps)
+  se_power_lm = sd_power_lm / sqrt(num_reps)
+  ci_fdp_lm = 1.96 * se_fdp_lm
+  ci_power_lm = 1.96 * se_power_lm
+  
+  # Store results for Linear Model
+  fdp_means_lm = c(fdp_means_lm, mean_fdp_lm)
+  power_means_lm = c(power_means_lm, mean_power_lm)
+  fdp_ci_lower_lm = c(fdp_ci_lower_lm, pmax(mean_fdp_lm - ci_fdp_lm, 0))  # Truncate lower bound
+  fdp_ci_upper_lm = c(fdp_ci_upper_lm, pmin(mean_fdp_lm + ci_fdp_lm, 1))  # Truncate upper bound
+  power_ci_lower_lm = c(power_ci_lower_lm, pmax(mean_power_lm - ci_power_lm, 0))  # Truncate lower bound
+  power_ci_upper_lm = c(power_ci_upper_lm, pmin(mean_power_lm + ci_power_lm, 1))  # Truncate upper bound
+  
+  # Compute mean and confidence intervals for Causal Forest
+  mean_fdp_cf = mean(fdp_repeats_cf)
+  mean_power_cf = mean(power_repeats_cf)
+  sd_fdp_cf = sd(fdp_repeats_cf)
+  sd_power_cf = sd(power_repeats_cf)
+  se_fdp_cf = sd_fdp_cf / sqrt(num_reps)
+  se_power_cf = sd_power_cf / sqrt(num_reps)
+  ci_fdp_cf = 1.96 * se_fdp_cf
+  ci_power_cf = 1.96 * se_power_cf
+  
+  # Store results for Causal Forest
+  fdp_means_cf = c(fdp_means_cf, mean_fdp_cf)
+  power_means_cf = c(power_means_cf, mean_power_cf)
+  fdp_ci_lower_cf = c(fdp_ci_lower_cf, pmax(mean_fdp_cf - ci_fdp_cf, 0))  # Truncate lower bound
+  fdp_ci_upper_cf = c(fdp_ci_upper_cf, pmin(mean_fdp_cf + ci_fdp_cf, 1))  # Truncate upper bound
+  power_ci_lower_cf = c(power_ci_lower_cf, pmax(mean_power_cf - ci_power_cf, 0))  # Truncate lower bound
+  power_ci_upper_cf = c(power_ci_upper_cf, pmin(mean_power_cf + ci_power_cf, 1))  # Truncate upper bound
+}
+```
 
 
 
