@@ -1,0 +1,264 @@
+---
+title: "Knockoff_method_experiment2"
+author: "Mark Milner"
+date: "2025-01-19"
+output: html_document
+---
+
+This experiment considers changing the number of truly relevant covariates
+
+```{r}
+library(knockoff)
+```
+
+```{r}
+fdp = function(selected, beta) sum(beta[selected] == 0) / max(1, length(selected))
+```
+
+```{r}
+power = function(selected, beta) {
+  # True Positives: selected variables with non-zero coefficients
+  TP = sum(beta[selected] != 0)
+  
+  # Total Relevant Variables
+  T = sum(beta != 0)
+  
+  # Compute Power
+  TP / T
+}
+```
+
+## Data Setup 
+
+```{r}
+set.seed(21)
+```
+
+```{r}
+generate_synthetic_data <- function(n=1000, p=1000, relevant_count=100, amplitude=7.5, rho=0.25) {
+  mu = rep(0,p)
+  Sigma = toeplitz(rho^(0:(p-1)))
+  X = matrix(rnorm(n*p),n)# %*% chol(Sigma)
+  nonzero = sample(p, relevant_count)
+#  print(nonzero)
+  beta = amplitude * (1:p %in% nonzero) / sqrt(n)
+  y =  X %*% beta + rnorm(n)
+  list(X = X, y = y, beta=beta)
+}
+```
+
+# Implimentation 
+
+```{r}
+relevant_counts = c(50,100,200,300,400,500,600,700,800,900,1000)
+fdp_s = c()
+power_s = c()
+for (relevant_count in relevant_counts){
+  print(relevant_count)
+  data <- generate_synthetic_data(relevant_count=relevant_count)
+  X <- data$X
+  y <- data$y
+  beta = data$beta
+  result = knockoff.filter(X, y)
+  #print(result$selected)
+  #print(length(result$selected))
+  current_fdp = fdp(result$selected, beta)
+  current_power = power(result$selected, beta)
+  fdp_s = c(fdp_s, current_fdp)
+  power_s = c(power_s, current_power)
+}
+```
+# Visualisation
+
+```{r}
+plot(relevant_counts, fdp_s, type = "o", col = "red", pch = 16, lty = 1,ylim=c(0,0.5),
+     xlab = "truely relevant count", ylab = "FDP",
+     main = "number of relevant variables vs FDP")
+
+plot(relevant_counts, power_s, type = "o", col = "blue", pch = 16, lty = 1,
+     xlab = "truely relevant count", ylab = "Power",
+     main = "number of relevant variables vs Power")
+
+```
+
+
+# repeated trials
+
+```{r}
+num_repeats = 5  # Number of repetitions per relevant count
+
+# Initialize vectors to store results
+fdp_means = c()
+power_means = c()
+fdp_ci_lower = c()
+fdp_ci_upper = c()
+power_ci_lower = c()
+power_ci_upper = c()
+
+# Loop over relevant counts
+for (relevant_count in relevant_counts) {
+  fdp_repeats = c()
+  power_repeats = c()
+  
+  # Repeat the experiment 5 times
+  for (i in 1:num_repeats) {
+    data <- generate_synthetic_data(relevant_count = relevant_count)  # Generate data with current relevant count
+    X <- data$X
+    y <- data$y
+    beta <- data$beta
+    
+    result <- knockoff.filter(X, y)  # Apply knockoff filter
+    current_fdp <- fdp(result$selected, beta)  # Compute FDP
+    current_power <- power(result$selected, beta)  # Compute Power
+    
+    fdp_repeats <- c(fdp_repeats, current_fdp)
+    power_repeats <- c(power_repeats, current_power)
+  }
+  
+  # Compute mean and confidence intervals
+  mean_fdp <- mean(fdp_repeats)
+  mean_power <- mean(power_repeats)
+  sd_fdp <- sd(fdp_repeats)
+  sd_power <- sd(power_repeats)
+  se_fdp <- sd_fdp / sqrt(num_repeats)
+  se_power <- sd_power / sqrt(num_repeats)
+  
+  ci_fdp <- 1.96 * se_fdp
+  ci_power <- 1.96 * se_power
+  
+  # Store results
+  fdp_means <- c(fdp_means, mean_fdp)
+  power_means <- c(power_means, mean_power)
+  fdp_ci_lower <- c(fdp_ci_lower, pmax(mean_fdp - ci_fdp, 0))  # Truncate lower bound
+  fdp_ci_upper <- c(fdp_ci_upper, pmin(mean_fdp + ci_fdp, 1))  # Truncate upper bound
+  power_ci_lower <- c(power_ci_lower, pmax(mean_power - ci_power, 0))  # Truncate lower bound
+  power_ci_upper <- c(power_ci_upper, pmin(mean_power + ci_power, 1))  # Truncate upper bound
+}
+
+```
+
+```{r}
+# Plot Mean FDP vs Relevant Counts with Confidence Intervals
+plot(relevant_counts, fdp_means, type = "o", col = "red", pch = 16, lty = 1,
+     xlab = "Number of Relevant Counts", ylab = "Mean FDP",
+     main = "Mean FDP vs Number of Relevant Counts",
+     ylim = c(0, 1))  # Ensure y-axis is bounded between 0 and 1
+
+# Add confidence intervals
+arrows(relevant_counts, fdp_ci_lower, relevant_counts, fdp_ci_upper,
+       col = "red", angle = 90, code = 3, length = 0.1)
+
+# Plot Mean Power vs Relevant Counts with Confidence Intervals
+plot(relevant_counts, power_means, type = "o", col = "blue", pch = 16, lty = 1,
+     xlab = "Number of Relevant Counts", ylab = "Mean Power",
+     main = "Mean Power vs Number of Relevant Counts",
+     ylim = c(0, 1))  # Ensure y-axis is bounded between 0 and 1
+
+# Add confidence intervals
+arrows(relevant_counts, power_ci_lower, relevant_counts, power_ci_upper,
+       col = "blue", angle = 90, code = 3, length = 0.1)
+```
+
+```{r}
+# Initialize vectors to store results for Random Forest
+fdp_means_rf = c()
+power_means_rf = c()
+fdp_ci_lower_rf = c()
+fdp_ci_upper_rf = c()
+power_ci_lower_rf = c()
+power_ci_upper_rf = c()
+
+# Loop over relevant counts
+for (relevant_count in relevant_counts) {
+  fdp_repeats_rf = c()
+  power_repeats_rf = c()
+  
+  # Repeat the experiment 5 times
+  for (i in 1:num_repeats) {
+    data <- generate_synthetic_data(relevant_count = relevant_count)  # Generate data with current relevant count
+    X <- data$X
+    y <- data$y
+    beta <- data$beta
+    
+    # Apply knockoff filter with Random Forest statistic
+    result_rf <- knockoff.filter(X, y, statistic = stat.random_forest)
+    
+    current_fdp_rf <- fdp(result_rf$selected, beta)  # Compute FDP for RF
+    current_power_rf <- power(result_rf$selected, beta)  # Compute Power for RF
+    
+    fdp_repeats_rf <- c(fdp_repeats_rf, current_fdp_rf)
+    power_repeats_rf <- c(power_repeats_rf, current_power_rf)
+  }
+  
+  # Compute mean and confidence intervals for RF
+  mean_fdp_rf <- mean(fdp_repeats_rf)
+  mean_power_rf <- mean(power_repeats_rf)
+  sd_fdp_rf <- sd(fdp_repeats_rf)
+  sd_power_rf <- sd(power_repeats_rf)
+  se_fdp_rf <- sd_fdp_rf / sqrt(num_repeats)
+  se_power_rf <- sd_power_rf / sqrt(num_repeats)
+  
+  ci_fdp_rf <- 1.96 * se_fdp_rf
+  ci_power_rf <- 1.96 * se_power_rf
+  
+  # Store results for RF
+  fdp_means_rf <- c(fdp_means_rf, mean_fdp_rf)
+  power_means_rf <- c(power_means_rf, mean_power_rf)
+  fdp_ci_lower_rf <- c(fdp_ci_lower_rf, pmax(mean_fdp_rf - ci_fdp_rf, 0))  # Truncate lower bound
+  fdp_ci_upper_rf <- c(fdp_ci_upper_rf, pmin(mean_fdp_rf + ci_fdp_rf, 1))  # Truncate upper bound
+  power_ci_lower_rf <- c(power_ci_lower_rf, pmax(mean_power_rf - ci_power_rf, 0))  # Truncate lower bound
+  power_ci_upper_rf <- c(power_ci_upper_rf, pmin(mean_power_rf + ci_power_rf, 1))  # Truncate upper bound
+} 
+```
+
+```{r}
+# Plot Mean FDP vs Relevant Counts (Combined Plot)
+plot(relevant_counts, fdp_means_rf, type = "o", col = "darkgreen", pch = 16, lty = 2,
+     xlab = "Number of Relevant Covariates", ylab = "Mean FDP",
+     main = "Mean FDP vs Number of Relevant Covariates",
+     ylim = c(0, 1))  # Ensure y-axis is bounded between 0 and 1
+
+# Add RF confidence intervals
+arrows(relevant_counts, fdp_ci_lower_rf, relevant_counts, fdp_ci_upper_rf,
+       col = "darkgreen", angle = 90, code = 3, length = 0.1)
+
+# Add Default results
+lines(relevant_counts, fdp_means, type = "o", col = "red", pch = 16, lty = 1)
+
+# Add Default confidence intervals
+arrows(relevant_counts, fdp_ci_lower, relevant_counts, fdp_ci_upper,
+       col = "red", angle = 90, code = 3, length = 0.1)
+
+# Add legend
+legend("topright", legend = c("Random Forest", "Lasso"),
+       col = c("darkgreen", "red"), pch = 16, lty = c(2, 1))
+
+# Plot Mean Power vs Relevant Counts (Combined Plot)
+plot(relevant_counts, power_means_rf, type = "o", col = "darkgreen", pch = 16, lty = 2,
+     xlab = "Number of Relevant Covariates", ylab = "Mean Power",
+     main = "Mean Power vs Number of Relevant Covariates",
+     ylim = c(0, 1))  # Ensure y-axis is bounded between 0 and 1
+
+# Add RF confidence intervals
+arrows(relevant_counts, power_ci_lower_rf, relevant_counts, power_ci_upper_rf,
+       col = "darkgreen", angle = 90, code = 3, length = 0.1)
+
+# Add Default results
+lines(relevant_counts, power_means, type = "o", col = "red", pch = 16, lty = 1)
+
+# Add Default confidence intervals
+arrows(relevant_counts, power_ci_lower, relevant_counts, power_ci_upper,
+       col = "red", angle = 90, code = 3, length = 0.1)
+
+# Add legend
+legend("topright", legend = c("Random Forest", "Lasso"),
+       col = c("darkgreen", "red"), pch = 16, lty = c(2, 1))
+```
+
+
+
+
+
+
+
+

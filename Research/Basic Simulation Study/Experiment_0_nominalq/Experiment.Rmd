@@ -1,0 +1,352 @@
+---
+title: "Experiment0_varying_nominalq"
+author: "Mark Milner"
+date: "2025-01-31"
+output: ''
+---
+
+This experiment considers changing the prescribed accepted level of FDR.
+
+```{r}
+library(knockoff)
+```
+
+```{r}
+fdp = function(selected, beta) {
+  sum(beta[selected] == 0) / max(1, length(selected))
+}
+```
+
+```{r}
+power = function(selected, beta) {
+  # True Positives: selected variables with non-zero coefficients
+  TP = sum(beta[selected] != 0)
+  
+  # Total Relevant Variables
+  T = sum(beta != 0)
+  # Compute Power
+  TP / T
+}
+```
+
+# Implimentation
+
+To impliment this, we will consider a variety of FDR control values, namely 0.01, 0.05, 0.1, 0.2, 0.5. By default, we have that FDR=0.1
+
+```{r}
+generate_synthetic_data <- function(n=1000, p=1000, relevant_count=100, amplitude=4.5, rho=0.25) {
+  mu = rep(0,p)
+  Sigma = toeplitz(rho^(0:(p-1)))
+  X = matrix(rnorm(n*p),n) %*% chol(Sigma)
+  nonzero = sample(p, relevant_count)
+  beta = amplitude * (1:p %in% nonzero) / sqrt(n)
+  y =  X %*% beta + rnorm(n)
+  list(X = X, y = y, beta=beta)
+}
+```
+
+
+# rf
+```{r}
+nominals = c(0.01,0.05,0.1,0.2,0.5)
+fdp_s_rf = c()
+power_s_rf = c()
+data <- generate_synthetic_data()
+X <- data$X
+y <- data$y
+beta <- data$beta
+for (nominal in nominals) {
+  result = knockoff.filter(X, y, fdr=nominal, statistic=stat.random_forest)
+  current_fdp = fdp(result$selected, beta)
+  current_power = power(result$selected, beta)
+  fdp_s_rf = c(fdp_s_rf, current_fdp)
+  power_s_rf = c(power_s_rf, current_power)
+}
+```
+
+# lasso
+```{r}
+nominals = c(0.01,0.05,0.1,0.2,0.5)
+fdp_s_l = c()
+power_s_l = c()
+data <- generate_synthetic_data()
+X <- data$X
+y <- data$y
+beta <- data$beta
+for (nominal in nominals) {
+  result = knockoff.filter(X, y, fdr=nominal)
+  current_fdp = fdp(result$selected, beta)
+  current_power = power(result$selected, beta)
+  fdp_s_l = c(fdp_s_l, current_fdp)
+  power_s_l = c(power_s_l, current_power)
+}
+```
+
+
+# Visualisation 
+
+```{r}
+# Plot for FDP
+plot(nominals, fdp_s_l, type = "o", col = "red", pch = 16, lty = 1,
+     xlab = "q", ylab = "FDP",
+     main = "FDP vs Nominal q",
+     ylim = range(c(fdp_s_l, fdp_s_rf)))  # Adjust y-axis limits
+
+lines(nominals, fdp_s_rf, type = "o", col = "darkgreen", pch = 16, lty = 2)
+
+legend("bottomright", legend = c("Lasso", "Random Forest"),
+       col = c("red", "darkgreen"), pch = 16, lty = c(1, 2))
+
+# Plot for Power
+plot(nominals, power_s_l, type = "o", col = "red", pch = 16, lty = 1,
+     xlab = "q", ylab = "Power",
+     main = "Power vs Nominal q",
+     ylim = range(c(power_s_l, power_s_rf)))  # Adjust y-axis limits
+
+lines(nominals, power_s_rf, type = "o", col = "darkgreen", pch = 16, lty = 2)
+
+legend("bottomright", legend = c("Lasso", "Random Forest"),
+       col = c("red", "darkgreen"), pch = 16, lty = c(1, 2))
+
+```
+
+# Multiple experiments 
+
+
+```{r}
+nominals = c(0.01, 0.05, 0.1, 0.2, 0.5)
+fdp_s_rf = c()
+power_s_rf = c()
+fdp_s_l = c()
+power_s_l = c()
+data <- generate_synthetic_data()
+X <- data$X
+y <- data$y
+beta <- data$beta
+
+num_repeats = 5  # Number of tests per nominal q
+
+for (nominal in nominals) {
+  fdp_rf_repeats = c()
+  power_rf_repeats = c()
+  fdp_l_repeats = c()
+  power_l_repeats = c()
+  
+  for (i in 1:num_repeats) {
+    result_rf = knockoff.filter(X, y, fdr=nominal, statistic=stat.random_forest)
+    result_l = knockoff.filter(X, y, fdr=nominal)
+    
+    current_fdp_rf = fdp(result_rf$selected, beta)
+    current_power_rf = power(result_rf$selected, beta)
+    current_fdp_l = fdp(result_l$selected, beta)
+    current_power_l = power(result_l$selected, beta)
+    
+    fdp_rf_repeats = c(fdp_rf_repeats, current_fdp_rf)
+    power_rf_repeats = c(power_rf_repeats, current_power_rf)
+    fdp_l_repeats = c(fdp_l_repeats, current_fdp_l)
+    power_l_repeats = c(power_l_repeats, current_power_l)
+    
+    # Print results for each test
+    print(paste("q =", nominal, "Iteration =", i,
+                "FDP_RF =", round(current_fdp_rf, 3),
+                "Power_RF =", round(current_power_rf, 3),
+                "FDP_Lasso =", round(current_fdp_l, 3),
+                "Power_Lasso =", round(current_power_l, 3)))
+  }
+  
+  # Store the mean values across the 5 repetitions
+  fdp_s_rf = c(fdp_s_rf, mean(fdp_rf_repeats))
+  power_s_rf = c(power_s_rf, mean(power_rf_repeats))
+  fdp_s_l = c(fdp_s_l, mean(fdp_l_repeats))
+  power_s_l = c(power_s_l, mean(power_l_repeats))
+  
+  # Print mean results after all repetitions for a given q
+  print(paste("q =", nominal, 
+              "Mean FDP_RF =", round(mean(fdp_rf_repeats), 3),
+              "Mean Power_RF =", round(mean(power_rf_repeats), 3),
+              "Mean FDP_Lasso =", round(mean(fdp_l_repeats), 3),
+              "Mean Power_Lasso =", round(mean(power_l_repeats), 3)))
+}
+```
+
+
+```{r}
+plot(nominals, fdp_s_l, type = "o", col = "red", pch = 16, lty = 1,
+     xlab = "Nominal q", ylab = "Mean FDP",
+     main = "Mean FDP vs Nominal q",
+     ylim = range(c(fdp_s_l, fdp_s_rf)))  
+
+lines(nominals, fdp_s_rf, type = "o", col = "darkgreen", pch = 16, lty = 2)
+
+legend("bottomright", legend = c("Lasso", "Random Forest"),
+       col = c("red", "darkgreen"), pch = 16, lty = c(1, 2))
+
+# Plot Mean Power results
+plot(nominals, power_s_l, type = "o", col = "red", pch = 16, lty = 1,
+     xlab = "Nominal q", ylab = "Mean Power",
+     main = "Mean Power vs Nominal q",
+     ylim = range(c(power_s_l, power_s_rf)))  
+
+lines(nominals, power_s_rf, type = "o", col = "darkgreen", pch = 16, lty = 2)
+
+legend("bottomright", legend = c("Lasso", "Random Forest"),
+       col = c("red", "darkgreen"), pch = 16, lty = c(1, 2))
+```
+# introducing confiedence intervals
+
+```{r}
+# Define the nominal FDR levels
+nominals = c(0.01, 0.05, 0.1, 0.2, 0.5)
+
+# Initialize vectors to store results
+fdp_s_rf = c()
+power_s_rf = c()
+fdp_s_l = c()
+power_s_l = c()
+
+# Initialize vectors to store confidence intervals
+fdp_s_rf_ci_lower = c()
+fdp_s_rf_ci_upper = c()
+power_s_rf_ci_lower = c()
+power_s_rf_ci_upper = c()
+fdp_s_l_ci_lower = c()
+fdp_s_l_ci_upper = c()
+power_s_l_ci_lower = c()
+power_s_l_ci_upper = c()
+
+# Generate synthetic data
+data <- generate_synthetic_data()
+X <- data$X
+y <- data$y
+beta <- data$beta
+
+# Number of repetitions
+num_repeats = 5
+
+# Loop over nominal FDR levels
+for (nominal in nominals) {
+  fdp_rf_repeats = c()
+  power_rf_repeats = c()
+  fdp_l_repeats = c()
+  power_l_repeats = c()
+  
+  # Repeat the experiment 5 times
+  for (i in 1:num_repeats) {
+    result_rf = knockoff.filter(X, y, fdr=nominal, statistic=stat.random_forest)
+    result_l = knockoff.filter(X, y, fdr=nominal)
+    
+    current_fdp_rf = fdp(result_rf$selected, beta)
+    current_power_rf = power(result_rf$selected, beta)
+    current_fdp_l = fdp(result_l$selected, beta)
+    current_power_l = power(result_l$selected, beta)
+    
+    fdp_rf_repeats = c(fdp_rf_repeats, current_fdp_rf)
+    power_rf_repeats = c(power_rf_repeats, current_power_rf)
+    fdp_l_repeats = c(fdp_l_repeats, current_fdp_l)
+    power_l_repeats = c(power_l_repeats, current_power_l)
+    
+    # Print results for each test
+    print(paste("q =", nominal, "Iteration =", i,
+                "FDP_RF =", round(current_fdp_rf, 3),
+                "Power_RF =", round(current_power_rf, 3),
+                "FDP_Lasso =", round(current_fdp_l, 3),
+                "Power_Lasso =", round(current_power_l, 3)))
+  }
+  
+  # Calculate mean and confidence intervals
+  mean_fdp_rf = mean(fdp_rf_repeats)
+  mean_power_rf = mean(power_rf_repeats)
+  mean_fdp_l = mean(fdp_l_repeats)
+  mean_power_l = mean(power_l_repeats)
+  
+  sd_fdp_rf = sd(fdp_rf_repeats)
+  sd_power_rf = sd(power_rf_repeats)
+  sd_fdp_l = sd(fdp_l_repeats)
+  sd_power_l = sd(power_l_repeats)
+  
+  se_fdp_rf = sd_fdp_rf / sqrt(num_repeats)
+  se_power_rf = sd_power_rf / sqrt(num_repeats)
+  se_fdp_l = sd_fdp_l / sqrt(num_repeats)
+  se_power_l = sd_power_l / sqrt(num_repeats)
+  
+  ci_fdp_rf = 1.96 * se_fdp_rf
+  ci_power_rf = 1.96 * se_power_rf
+  ci_fdp_l = 1.96 * se_fdp_l
+  ci_power_l = 1.96 * se_power_l
+  
+  # Store results
+  fdp_s_rf = c(fdp_s_rf, mean_fdp_rf)
+  power_s_rf = c(power_s_rf, mean_power_rf)
+  fdp_s_l = c(fdp_s_l, mean_fdp_l)
+  power_s_l = c(power_s_l, mean_power_l)
+  
+  fdp_s_rf_ci_lower = c(fdp_s_rf_ci_lower, mean_fdp_rf - ci_fdp_rf)
+  fdp_s_rf_ci_upper = c(fdp_s_rf_ci_upper, mean_fdp_rf + ci_fdp_rf)
+  power_s_rf_ci_lower = c(power_s_rf_ci_lower, mean_power_rf - ci_power_rf)
+  power_s_rf_ci_upper = c(power_s_rf_ci_upper, mean_power_rf + ci_power_rf)
+  fdp_s_l_ci_lower = c(fdp_s_l_ci_lower, mean_fdp_l - ci_fdp_l)
+  fdp_s_l_ci_upper = c(fdp_s_l_ci_upper, mean_fdp_l + ci_fdp_l)
+  power_s_l_ci_lower = c(power_s_l_ci_lower, mean_power_l - ci_power_l)
+  power_s_l_ci_upper = c(power_s_l_ci_upper, mean_power_l + ci_power_l)
+  
+  # Print mean results and confidence intervals
+  print(paste("q =", nominal, 
+              "Mean FDP_RF =", round(mean_fdp_rf, 3), 
+              "CI = [", round(mean_fdp_rf - ci_fdp_rf, 3), ",", round(mean_fdp_rf + ci_fdp_rf, 3), "]",
+              "Mean Power_RF =", round(mean_power_rf, 3), 
+              "CI = [", round(mean_power_rf - ci_power_rf, 3), ",", round(mean_power_rf + ci_power_rf, 3), "]",
+              "Mean FDP_Lasso =", round(mean_fdp_l, 3), 
+              "CI = [", round(mean_fdp_l - ci_fdp_l, 3), ",", round(mean_fdp_l + ci_fdp_l, 3), "]",
+              "Mean Power_Lasso =", round(mean_power_l, 3), 
+              "CI = [", round(mean_power_l - ci_power_l, 3), ",", round(mean_power_l + ci_power_l, 3), "]"))
+}
+```
+
+
+```{r}
+
+# Plot Mean FDP results with truncated confidence intervals
+plot(nominals, fdp_s_l, type = "o", col = "red", pch = 16, lty = 1,
+     xlab = "Nominal q", ylab = "Mean FDP",
+     main = "Mean FDP vs Nominal q",
+     ylim = c(0, 1))  # Ensure y-axis is bounded between 0 and 1
+
+# Add confidence intervals for Lasso
+arrows(nominals, fdp_s_l_ci_lower, nominals, fdp_s_l_ci_upper,
+       col = "red", angle = 90, code = 3, length = 0.1)
+
+# Add Random Forest line
+lines(nominals, fdp_s_rf, type = "o", col = "darkgreen", pch = 16, lty = 2)
+
+# Add confidence intervals for Random Forest
+arrows(nominals, fdp_s_rf_ci_lower, nominals, fdp_s_rf_ci_upper,
+       col = "darkgreen", angle = 90, code = 3, length = 0.1)
+
+# Add legend
+legend("bottomright", legend = c("Lasso", "Random Forest"),
+       col = c("red", "darkgreen"), pch = 16, lty = c(1, 2))
+
+# Plot Mean Power results with truncated confidence intervals
+plot(nominals, power_s_l, type = "o", col = "red", pch = 16, lty = 1,
+     xlab = "Nominal q", ylab = "Mean Power",
+     main = "Mean Power vs Nominal q",
+     ylim = c(0, 1))  # Ensure y-axis is bounded between 0 and 1
+
+# Add confidence intervals for Lasso
+arrows(nominals, power_s_l_ci_lower, nominals, power_s_l_ci_upper,
+       col = "red", angle = 90, code = 3, length = 0.1)
+
+# Add Random Forest line
+lines(nominals, power_s_rf, type = "o", col = "darkgreen", pch = 16, lty = 2)
+
+# Add confidence intervals for Random Forest
+arrows(nominals, power_s_rf_ci_lower, nominals, power_s_rf_ci_upper,
+       col = "darkgreen", angle = 90, code = 3, length = 0.1)
+
+# Add legend
+legend("bottomright", legend = c("Lasso", "Random Forest"),
+       col = c("red", "darkgreen"), pch = 16, lty = c(1, 2))
+```
+
+
+
