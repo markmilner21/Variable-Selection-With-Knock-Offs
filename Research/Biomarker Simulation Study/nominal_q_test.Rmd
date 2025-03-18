@@ -1,0 +1,321 @@
+---
+xtitle: "Biomarker_nominal_test"
+author: "Mark Milner"
+date: "2025-02-17"
+output: html_document
+---
+
+```{r}
+library(glmnet) # is needed for the linear interaction KO filter 
+#library(grf) # is needed for the causal forest (CF) variable importance KO filter 
+library(knockoff) # is needed for generating the knockoffs and calculating the threshold
+source("C:\\Users\\markm\\OneDrive\\Documents\\University\\Year 4\\Project\\Software\\Variable-Selection-With-Knock-Offs\\Research\\Biomarker Simulation Study\\biomarker_functions.R")
+
+```
+
+```{r}
+synthetic_data = generate_scenarios_predictive(scenario = 'S1', model = 'M6', 
+sample_size = 1000, num_features = 1000, predictive_amplitude = 1)
+paste('In this synthetic dataset the following variables are predictive:', 
+paste(synthetic_data$predictive, collapse=","))
+```
+```{r}
+X_tilde = data.frame(create.second_order(as.matrix(synthetic_data$X)))
+```
+```{r}
+selected_with_linear_filter = linear_model_predictive_filter(synthetic_data$X, X_tilde,
+synthetic_data$y, synthetic_data$t, fdr_nominal = 0.10, family = 'gaussian')
+paste('The linear interaction KO filter returns the variables:',
+paste(selected_with_linear_filter, collapse=","))
+```
+
+```{r}
+power_result = power(selected_with_linear_filter, synthetic_data$predictive)
+fdp_result = fdp(selected_with_linear_filter, synthetic_data$predictive )
+```
+
+# Experiment
+
+```{r}
+q_s = c(0.01,0.05,0.1,0.2,0.5)
+
+results_fdp_l = c()
+results_power_l = c()
+results_fdp_cf = c()
+results_power_cf = c()
+
+synthetic_data = generate_scenarios_predictive(scenario = 'S1', model = 'M6', 
+sample_size = 1000, num_features = 1000, predictive_amplitude = 1)
+
+
+paste('In this synthetic dataset the following variables are predictive:', 
+paste(synthetic_data$predictive, collapse=","))
+
+for (q in q_s){
+  X_tilde = data.frame(create.second_order(as.matrix(synthetic_data$X)))
+  selected_with_linear_filter = linear_model_predictive_filter(synthetic_data$X, X_tilde,
+synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+  
+  selected_with_cf_filter = causal_forest_predictive_filter(synthetic_data$X, X_tilde,
+synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+  
+  
+  power_result_l = power(selected_with_linear_filter, synthetic_data$predictive)
+  fdp_result_l = fdp(selected_with_linear_filter, synthetic_data$predictive )
+  results_fdp_l = c(results_fdp_l, fdp_result_l)
+  results_power_l = c(results_power_l, power_result_l)
+  
+  power_result_cf = power(selected_with_cf_filter, synthetic_data$predictive)
+  fdp_result_cf = fdp(selected_with_cf_filter, synthetic_data$predictive )
+  results_fdp_cf = c(results_fdp_cf, fdp_result_cf)
+  results_power_cf = c(results_power_cf, power_result_cf)
+  
+}
+
+```
+
+```{r}
+plot(q_s, results_fdp_cf, type = "o", col = "red", pch = 16, lty = 1,
+     xlab = "q", ylab = "FDP",
+     main = "nominal q vs FDP ")
+
+plot(q_s, results_power_cf, type = "o", col = "blue", pch = 16, lty = 1,
+     xlab = "q", ylab = "Power",
+     main = "nominal q vs Power")
+
+```
+# Performing multiple iterations
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# q = 0.01
+```{r}
+q = 0.01
+nIterations = 5
+fdp_0.01 = c()
+power_0.01 = c()
+for (i in 1:nIterations){
+  X_tilde = data.frame(create.second_order(as.matrix(synthetic_data$X)))
+    selected_with_linear_filter = linear_model_predictive_filter(synthetic_data$X, X_tilde,synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+  current_fdp =  fdp(selected_with_linear_filter, synthetic_data$predictive )
+  current_power = power(selected_with_linear_filter, synthetic_data$predictive)
+  fdr_0.01 = c(fdr_0.01, current_fdp)
+  power_0.01 = c(power_0.01, current_power)
+}
+```
+
+# q = 0.05
+```{r}
+q = 0.05
+nIterations = 5
+fdp_0.05 = c()
+power_0.05 = c()
+for (i in 1:nIterations){
+  X_tilde = data.frame(create.second_order(as.matrix(synthetic_data$X)))
+    selected_with_linear_filter = linear_model_predictive_filter(synthetic_data$X, X_tilde,synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+  current_fdp =  fdp(selected_with_linear_filter, synthetic_data$predictive )
+  current_power = power(selected_with_linear_filter, synthetic_data$predictive)
+  fdr_0.05 = c(fdr_0.05, current_fdp)
+  power_0.05 = c(power_0.05, current_power)
+}
+```
+
+
+# q = 0.1
+```{r}
+q = 0.1
+nIterations = 5
+fdp_0.10 = c()
+power_0.10 = c()
+for (i in 1:nIterations){
+  X_tilde = data.frame(create.second_order(as.matrix(synthetic_data$X)))
+    selected_with_linear_filter = linear_model_predictive_filter(synthetic_data$X, X_tilde,synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+  current_fdp =  fdp(selected_with_linear_filter, synthetic_data$predictive )
+  current_power = power(selected_with_linear_filter, synthetic_data$predictive)
+  fdr_0.10 = c(fdr_0.10, current_fdp)
+  power_0.10 = c(power_0.10, current_power)
+}
+```
+
+# q = 0.2
+```{r}
+q = 0.20
+nIterations = 5
+fdr_0.20 = c()
+power_0.20 = c()
+for (i in 1:nIterations){
+  X_tilde = data.frame(create.second_order(as.matrix(synthetic_data$X)))
+    selected_with_linear_filter = linear_model_predictive_filter(synthetic_data$X, X_tilde,synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+  current_fdp =  fdp(selected_with_linear_filter, synthetic_data$predictive )
+  current_power = power(selected_with_linear_filter, synthetic_data$predictive)
+  fdr_0.20 = c(fdr_0.20, current_fdp)
+  power_0.20 = c(power_0.20, current_power)
+}
+```
+
+# q = 0.5
+```{r}
+q = 0.50
+nIterations = 5
+fdp_0.50 = c()
+power_0.50 = c()
+for (i in 1:nIterations){
+  X_tilde = data.frame(create.second_order(as.matrix(synthetic_data$X)))
+    selected_with_linear_filter = linear_model_predictive_filter(synthetic_data$X, X_tilde,synthetic_data$y, synthetic_data$t, fdr_nominal = q, family = 'gaussian')
+  current_fdp =  fdp(selected_with_linear_filter, synthetic_data$predictive )
+  current_power = power(selected_with_linear_filter, synthetic_data$predictive)
+  fdp_0.50 = c(fdp_0.50, current_fdp)
+  power_0.50 = c(power_0.50, current_power)
+}
+```
+
+```{r}
+mean_fdr0.01 = mean(fdp_0.01)
+mean_fdr0.05 = mean(fdp_0.05)
+mean_fdr0.1 = mean(fdp_0.10)
+mean_fdr0.2 = mean(fdp_0.20)
+mean_fdr0.5 = mean(fdp_0.50)
+mean_power0.01 = mean(power_0.01)
+mean_power0.05 = mean(power_0.05)
+mean_power0.1 = mean(power_0.10)
+mean_power0.2 = mean(power_0.20)
+mean_power0.5 = mean(power_0.50)
+```
+
+```{r}
+means_fdp = c(mean_fdr0.01,mean_fdr0.05,mean_fdr0.1,mean_fdr0.2,mean_fdr0.5)
+means_power = c(mean_power0.01,mean_power0.05,mean_power0.1,mean_power0.2,mean_power0.5)
+```
+
+
+```{r}
+nominals = c(0.01, 0.05, 0.1, 0.2, 0.5)
+plot(nominals, means_fdp, type = "o", col = "red", pch = 16, lty = 1, 
+     main = "Nominal q vs Mean FDP", xlab = "q", ylab = "Mean FDP", ylim = c(0, 0.6))
+
+abline(0, 1, col = "black")
+
+# Adding a legend
+legend("topleft", legend = c("Mean FDP", "Y = X"), 
+       col = c("red", "black"), pch = c(16, NA), lty = c(1, 1))
+
+```
+
+```{r}
+plot(nominals,means_power,type = "o", col = "blue", pch = 16, lty = 1,main='nominal q vs mean power', xlab = 'q', ylab = 'mean power')
+```
+
