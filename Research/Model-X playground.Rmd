@@ -408,7 +408,5 @@ ggplot(simulated_results, aes(x = Expected_FDR, y = Observed_FDP)) +
 Observed_average_FDP
 ```
 
-```{r}
 
-```
 
