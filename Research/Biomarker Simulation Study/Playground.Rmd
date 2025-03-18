@@ -1,0 +1,132 @@
+---
+title: "Playground"
+author: "Mark Milner"
+date: "2025-02-14"
+output: html_document
+---
+
+```{r}
+library(knockoff)
+```
+
+```{r}
+fdp = function(selected, beta) {
+  sum(beta[selected] == 0) / max(1, length(selected))
+}
+```
+
+```{r}
+power = function(selected, beta) {
+  # True Positives: selected variables with non-zero coefficients
+  TP = sum(beta[selected] != 0)
+  
+  # Total Relevant Variables
+  T = sum(beta != 0)
+  # Compute Power
+  TP / T
+}
+```
+
+```{r}
+library(glmnet) # is needed for the linear interaction KO filter 
+#library(grf) # is needed for the causal forest (CF) variable importance KO filter 
+library(knockoff) # is needed for generating the knockoffs and calculating the threshold
+#source('./predictive_knockoff_filters.R')
+#source('./simdata.R') 
+```
+
+
+
+# Data generation
+
+We construct data as suggested in the Schedis paper
+
+```{r}
+generate_synthetic_data <- function(n=1000, p=1000, relevant_count=100, amplitude=4.5, rho=0.25) {
+  # Create covariance matrix using a Toeplitz structure
+  Sigma = toeplitz(rho^(0:(p-1)))
+  
+  # Generate independent standard normal variables (corrected matrix dimensions)
+  X_raw = matrix(rnorm(n * p), n, p)
+  
+  # Apply Cholesky transformation to induce correlation (optional)
+  # X = X_raw %*% chol(Sigma)
+  X = X_raw  # Using raw matrix without Cholesky
+  
+  # Assign treatment indicator
+  is_treated = as.numeric(runif(n) < 0.5)
+  
+  # Select relevant features
+  #prog_indices = sample(1:p, relevant_count / 2)  # Half for prognosis
+  prog_indices = sample(1:p, p)
+  pred_indices = sample(prog_indices, relevant_count / 2)  # Half for treatment heterogeneity
+  
+  # Generate sparse coefficient vectors
+  beta_prog = amplitude * (1:p %in% prog_indices) / sqrt(n)  # Prognostic effects
+  beta_pred = amplitude * (1:p %in% pred_indices) / sqrt(n)  # Predictive effects
+
+  # Treatment effect coefficient (heterogeneous treatment effect)
+  theta_pred = amplitude / sqrt(n)
+
+  # Compute response variable based on expectation structure
+  y = X %*% beta_prog + is_treated * (0.5 + theta_pred * (X %*% beta_pred)) + rnorm(n)
+  
+  # Add treatment column to X
+  X = cbind(X, is_treated)  
+
+  return(list(X = X, y = y, beta_prog = beta_prog, beta_pred = beta_pred, t = is_treated))
+}
+
+compute_transformed_outcome <- function(Y, t) {
+  # Convert treatment assignment to effect coding
+  T_star = ifelse(t == 1, 1, -1)  # T=1 for treatment, T=-1 for control
+  
+  # Compute transformed outcome
+  Y_star = 2 * Y * T_star
+  
+  return(Y_star)
+}
+
+```
+
+```{r}
+results = generate_synthetic_data()
+X = results$X
+y = results$y
+beta_prog = results$beta_prog
+beta_pred = results$beta_pred
+t = results$t
+y_star = compute_transformed_outcome(y, t)
+result = knockoff.filter(X, y_star)
+```
+
+```{r}
+current_fdp = fdp(result$selected,beta_pred)
+current_power = power(result$selected,beta_pred)
+```
+
+
+
+
+
+
+```{r}
+nominals = c(0.01,0.05,0.1,0.2,0.5)
+fdp_s = c()
+power_s = c()
+data <- generate_synthetic_data()
+X <- data$X
+y <- data$y
+beta <- data$beta
+T = results$T
+y_star = compute_transformed_outcome(y, T)
+for (nominal in nominals) {
+  result = knockoff.filter(X, y_star, fdr=nominal)
+  current_fdp = fdp(result$selected, beta)
+  current_power = power(result$selected, beta)
+  fdp_s = c(fdp_s, current_fdp)
+  power_s = c(power_s, current_power)
+}
+```
+
+
