@@ -1,0 +1,882 @@
+---
+title: "Experiment4"
+author: "Mark Milner"
+date: "2025-01-31"
+output: html_document
+---
+
+This experiment will consider miss-specification. Here, we keep the algorithm with the gaussian assumption i.e. we don't change anything in regards to the construction of the knockoffs. However, we construct out covariate data in a new way.
+
+```{r}
+library(knockoff)
+library(dplyr)   # Provides %>%
+library(tidyr)   # Provides pivot_longer()
+library(ggplot2)
+
+```
+
+## Data Setup 
+
+```{r}
+set.seed(21)
+```
+
+```{r}
+generate_synthetic_data <- function(n = 1000, p = 1000, relevant_count = 100, amplitude = 4.5, rho = 0.25, lambda) {
+  mu = rep(0, p)
+  Sigma = toeplitz(rho^(0:(p-1)))
+  pre_cor_X = matrix(0, n, p)  # Initialize matrix
+
+  # Vectorized approach: pre-sample t and normal values for all columns
+  is_t_dist = runif(p) < lambda  # Boolean vector: which columns should use t-distribution
+  # as we increase lambda, we get more tdist
+  t_dist_columns = c()
+  
+   for (j in 1:p) {
+     pre_cor_X[, j] = rnorm(n)  # Generate all normal values at once
+   }
+  
+  print(length(t_dist_columns) / p)
+  
+  # Correlate data (optional)
+  X = pre_cor_X #%*% chol(Sigma)
+  
+  # Select relevant variables and create response
+  f
+  
+  return(list(X = X, y = y, beta = beta))
+}
+```
+
+
+# Implimentation: t-distribution
+
+```{r}
+# Define the x values
+x <- seq(-5, 5, length.out = 10000)
+
+# Open a new plotting window
+plot(x, dnorm(x), type = "l", col = "orange", lwd = 2, lty = 1,
+     xlab = "Value", ylab = "Probability Density", 
+     main = "Comparison of Normal and t-Distributions",
+     cex.main = 1.2, cex.lab = 1.1, cex.axis = 1)
+
+# Add multiple t-distribution curves with requested colors
+lines(x, dt(x, df = 2), col = "red", lwd = 2, lty = 2)    # df=2 (Red)
+lines(x, dt(x, df = 3), col = "green", lwd = 2, lty = 2)  # df=3 (Green)
+lines(x, dt(x, df = 4), col = "black", lwd = 2, lty = 2)  # df=4 (Black)
+lines(x, dt(x, df = 5), col = "blue", lwd = 2, lty = 2)   # df=5 (Blue)
+
+# Add shaded areas under the curves with improved normal shading
+polygon(x, dnorm(x), col = rgb(1, 0.5, 0, 0.2), border = NA)       # Normal (Orange)
+polygon(x, dt(x, df = 2), col = rgb(1, 0, 0, 0.2), border = NA)    # df=2 (Red)
+polygon(x, dt(x, df = 3), col = rgb(0, 1, 0, 0.2), border = NA)    # df=3 (Green)
+polygon(x, dt(x, df = 4), col = rgb(0, 0, 0, 0.2), border = NA)    # df=4 (Black)
+polygon(x, dt(x, df = 5), col = rgb(0, 0, 1, 0.2), border = NA)    # df=5 (Blue)
+
+# Add a legend with the correct colors
+legend("topright", legend = c("Normal(0,1)", 
+                              "t-distribution (df=2)", 
+                              "t-distribution (df=3)", 
+                              "t-distribution (df=4)", 
+                              "t-distribution (df=5)"), 
+       col = c("orange", "red", "green", "black", "blue"), 
+       lwd = 2, lty = c(1, 2, 2, 2, 2), 
+       bg = "white", cex = 0.9)
+
+# Add a grid for better readability
+grid(col = "gray90", lty = "dotted")
+
+```
+
+
+
+First we will just begin by performing multiple standard experiments
+
+```{r}
+fdp = function(selected, beta) sum(beta[selected] == 0) / max(1, length(selected))
+```
+
+```{r}
+power = function(selected, beta) {
+  # True Positives: selected variables with non-zero coefficients
+  TP = sum(beta[selected] != 0)
+  # Total Relevant Variables
+  T = sum(beta != 0)
+  # Compute Power
+  TP / T
+}
+```
+
+## Standard normal experiment
+
+```{r}
+n = 1000         # number of observations
+p = 1000         # number of variables
+k = 100          # number of variables with nonzero coefficients
+amplitude = 4.5  # signal amplitude (for noise level = 1)
+mu = rep(0,p)
+rho = 0.10
+Sigma = toeplitz(rho^(0:(p-1)))
+X = matrix(rnorm(n*p),n)# %*% chol(Sigma)
+nonzero = sample(p, k)
+beta = amplitude * (1:p %in% nonzero) / sqrt(n)
+y.sample = function(X) X %*% beta + rnorm(n)
+y = y.sample(X)
+```
+
+
+```{r}
+diag_s = create.solve_asdp(Sigma)
+```
+
+
+```{r}
+X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+t = knockoff.threshold(W, fdr=0.1, offset=1)
+selected = which(W >= t)
+# Compute FDP and Power
+results = list(fdp = fdp(selected,beta), power = power(selected,beta))
+```
+
+# Experiment using t
+
+```{r}
+n = 1000         # number of observations
+p = 1000         # number of variables
+k = 100          # number of variables with nonzero coefficients
+amplitude = 4.5  # signal amplitude (for noise level = 1)
+mu = rep(0,p)
+rho = 0.10
+Sigma = toeplitz(rho^(0:(p-1)))
+X = matrix(rt(n*p, df=1),n)# %*% chol(Sigma)
+nonzero = sample(p, k)
+beta = amplitude * (1:p %in% nonzero) / sqrt(n)
+y.sample = function(X) X %*% beta + rnorm(n)
+y = y.sample(X)
+```
+
+
+```{r}
+diag_s = create.solve_asdp(Sigma)
+```
+
+
+```{r}
+X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+t = knockoff.threshold(W, fdr=0.1, offset=1)
+selected = which(W >= t)
+# Compute FDP and Power
+results = list(fdp = fdp(selected,beta), power = power(selected,beta))
+```
+
+# implimenting lambda
+
+```{r}
+n = 1000         # number of observations
+p = 1000         # number of variables
+k = 100          # number of variables with nonzero coefficients
+amplitude = 4.5  # signal amplitude (for noise level = 1)
+mu = rep(0,p)
+rho = 0.10
+Sigma = toeplitz(rho^(0:(p-1)))
+nonzero = sample(p, k)
+beta = amplitude * (1:p %in% nonzero) / sqrt(n)
+y.sample = function(X) X %*% beta + rnorm(n)
+```
+
+
+```{r}
+fdp_s_df1 = c()
+power_s_df1 = c()
+
+lambdas = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1)
+for (lambda in lambdas) {
+  is_t_dist = runif(p) < lambda  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = rt(n, df = 1)  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+    
+  }
+  y = y.sample(X)
+  X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+  W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+  t = knockoff.threshold(W, fdr=0.1, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  fdp_s_df1 = c(fdp_s_df1, result$fdp)
+  power_s_df1 = c(power_s_df1, result$power)
+  
+  }
+
+```
+
+
+```{r}
+fdp_s_df2 = c()
+power_s_df2 = c()
+
+lambdas = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1)
+for (lambda in lambdas) {
+  is_t_dist = runif(p) < lambda  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = rt(n, df = 2)  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+    
+  }
+  y = y.sample(X)
+  X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+  W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+  t = knockoff.threshold(W, fdr=0.1, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  fdp_s_df2 = c(fdp_s_df2, result$fdp)
+  power_s_df2 = c(power_s_df2, result$power)
+  
+  }
+
+```
+
+
+```{r}
+fdp_s_df3 = c()
+power_s_df3 = c()
+relevant_count = 100
+
+lambdas = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1)
+for (lambda in lambdas) {
+  print(paste("Processing lambda:", lambda))
+  is_t_dist = runif(p) < lambda  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = rt(n, df = 3)  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+    
+  }
+  nonzero = sample(p, relevant_count)
+  beta = amplitude * (1:p %in% nonzero) / sqrt(n)
+  y = X %*% beta + rnorm(n)
+  X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+  W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+  t = knockoff.threshold(W, fdr=0.1, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  fdp_s_df3 = c(fdp_s_df3, result$fdp)
+  power_s_df3 = c(power_s_df3, result$power)
+  
+  }
+
+```
+
+```{r}
+fdp_s_df4 = c()
+power_s_df4 = c()
+
+lambdas = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1)
+for (lambda in lambdas) {
+  is_t_dist = runif(p) < lambda  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = rt(n, df = 4)  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+    
+  }
+  y = y.sample(X)
+  X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+  W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+  t = knockoff.threshold(W, fdr=0.1, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  fdp_s_df4 = c(fdp_s_df4, result$fdp)
+  power_s_df4 = c(power_s_df4, result$power)
+  
+  }
+
+```
+
+
+```{r}
+fdp_s_df5 = c()
+power_s_df5 = c()
+
+lambdas = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1)
+for (lambda in lambdas) {
+  is_t_dist = runif(p) < lambda  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = rt(n, df = 5)  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+    
+  }
+  y = y.sample(X)
+  X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+  W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+  t = knockoff.threshold(W, fdr=0.1, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  fdp_s_df5 = c(fdp_s_df5, result$fdp)
+  power_s_df5 = c(power_s_df5, result$power)
+  
+  }
+
+```
+
+
+
+
+```{r}
+plot(lambdas, fdp_s_df2, type = "o", col = "red", pch = 16, lty = 1, ylim = c(0, 1/2),
+     xlab = expression(lambda), ylab = "FDP",
+     main = "lambda vs FDP")
+
+lines(lambdas, fdp_s_df3, type = 'o', col = 'green')
+lines(lambdas, fdp_s_df4, type = 'o', col = 'black')
+lines(lambdas, fdp_s_df5, type = 'o', col = 'blue')
+
+# Adding the legend
+legend("topright", legend = c("t(df=2)", "t(df=3)", "t(df=4)", "t(df=5)"), 
+       col = c("red", "green", "black", "blue"), 
+       pch = 16, lty = 1)
+
+```
+
+
+```{r}
+plot(lambdas, power_s_df2, type = "o", col = "blue", pch = 16, lty = 1,ylim=c(0,1),
+     xlab = expression(lambda), ylab = "Power",
+     main = "lambda vs Power")
+
+#lines(lambdas, power_s_df2,type='o',col='green')
+lines(lambdas, power_s_df3,type='o',col='green')
+lines(lambdas, power_s_df4,type='o',col='black')
+lines(lambdas, power_s_df5,type='o',col='red')
+
+# Adding the legend
+legend("bottomright", legend = c("t(df=2)", "t(df=3)", "t(df=4)", "t(df=5)"), 
+       col = c("red", "green", "black", "blue"), 
+       pch = 16, lty = 1)
+
+```
+# cross sectional analysis - let's fix lambda = 0.5 so half of our data to get a sense of how well we are still controlling FDR
+# lbd = 0.25
+```{r}
+q_results_fdp_0.25 = c()
+q_results_power_0.25 = c()
+lbd = 0.25
+q_s = c(0.05,0.1,0.2,0.3,0.4,0.5)
+is_t_dist = runif(p) < lbd  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = rt(n, df = 3)  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+  }
+y = y.sample(X)
+X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+for (q in q_s) {
+  print(paste('Current q:',q))
+  t = knockoff.threshold(W, fdr=q, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  q_results_fdp_0.25 = c(q_results_fdp_0.25, result$fdp)
+  q_results_power_0.25 = c(q_results_power_0.25, result$power)
+}
+```
+
+
+# lbd = 0.5
+```{r}
+q_results_fdp_0.5 = c()
+q_results_power_0.5 = c()
+lbd = 0.5
+q_s = c(0.05,0.1,0.2,0.3,0.4,0.5)
+is_t_dist = runif(p) < lbd  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = rt(n, df = 3)  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+  }
+y = y.sample(X)
+X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+for (q in q_s) {
+  print(paste('Current q:',q))
+  t = knockoff.threshold(W, fdr=q, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  q_results_fdp_0.5 = c(q_results_fdp_0.5, result$fdp)
+  q_results_power_0.5 = c(q_results_power_0.5, result$power)
+}
+```
+# lbd = 0.75
+```{r}
+q_results_fdp_0.75 = c()
+q_results_power_0.75 = c()
+lbd = 0.75
+q_s = c(0.05,0.1,0.2,0.3,0.4,0.5)
+is_t_dist = runif(p) < lbd  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = rt(n, df = 3)  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+  }
+y = y.sample(X)
+X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+for (q in q_s) {
+  print(paste('Current q:',q))
+  t = knockoff.threshold(W, fdr=q, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  q_results_fdp_0.75 = c(q_results_fdp_0.75, result$fdp)
+  q_results_power_0.75 = c(q_results_power_0.75, result$power)
+}
+```
+
+# lbd = 1
+```{r}
+q_results_fdp_1.0 = c()
+q_results_power_1.0 = c()
+lbd = 1.0
+q_s = c(0.05,0.1,0.2,0.3,0.4,0.5)
+is_t_dist = runif(p) < lbd  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = rt(n, df = 3)  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+  }
+y = y.sample(X)
+X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+for (q in q_s) {
+  print(paste('Current q:',q))
+  t = knockoff.threshold(W, fdr=q, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  q_results_fdp_1.0 = c(q_results_fdp_1.0, result$fdp)
+  q_results_power_1.0 = c(q_results_power_1.0, result$power)
+}
+```
+
+```{r}
+q_s = c(0.05,0.1,0.2,0.3,0.4,0.5)
+plot(q_s, q_results_fdp_0.25, type = "o", col = "blue", pch = 16, lty = 1, ylim = c(0,1),
+     xlab = 'q', ylab = "FDP",
+     main = "q vs FDP for varying levels of Miss-Specification w/ T(df=3) distribution")
+
+lines(q_s, q_results_fdp_0.5, type = 'o', col = 'green')
+lines(q_s, q_results_fdp_0.75, type = 'o', col = 'black')
+lines(q_s, q_results_fdp_1.0, type = 'o', col = 'red')
+
+# Adding the legend with properly formatted labels
+legend("topright", legend = c(expression(lambda == 0.25), 
+                                 expression(lambda == 0.50), 
+                                 expression(lambda == 0.75), 
+                                 expression(lambda == 1.0)), 
+       col = c("blue", "green", "black", "red"), 
+       pch = 16, lty = 1)
+
+
+
+
+
+```
+
+```{r}
+q_s = c(0.05,0.1,0.2,0.3,0.4,0.5)
+plot(q_s, q_results_power_0.25, type = "o", col = "blue", pch = 16, lty = 1, ylim = c(0,1),
+     xlab = 'q', ylab = "Power",
+     main = "q vs Power for varying levels of Miss-Specification w/ T(df=3) distribution")
+
+lines(q_s, q_results_power_0.5, type = 'o', col = 'green')
+lines(q_s, q_results_power_0.75, type = 'o', col = 'black')
+lines(q_s, q_results_power_1.0, type = 'o', col = 'red')
+
+# Adding the legend with properly formatted labels
+legend("bottomright", legend = c(expression(lambda == 0.25), 
+                                 expression(lambda == 0.50), 
+                                 expression(lambda == 0.75), 
+                                 expression(lambda == 1.0)), 
+       col = c("blue", "green", "black", "red"), 
+       pch = 16, lty = 1)
+
+```
+
+# test with uniform:
+
+```{r}
+fdps_unif = c()
+powers_unif = c()
+n = 1000
+lambdas = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1)
+for (lambda in lambdas) {
+  print(paste("Processing lambda:", lambda))
+  is_t_dist = runif(p) < lambda  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = runif(n, min=-1*sqrt(3), max=1*sqrt(3))  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+    
+  }
+  nonzero = sample(p, relevant_count)
+  beta = amplitude * (1:p %in% nonzero) / sqrt(n)
+  y = X %*% beta + rnorm(n)
+  X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+  W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+  t = knockoff.threshold(W, fdr=0.1, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  fdps_unif = c(fdps_unif, result$fdp)
+  powers_unif = c(powers_unif, result$power)
+  }
+```
+```{r}
+plot(lambdas, powers_unif, type = "o", col = "blue", pch = 16, lty = 1,ylim=c(0,1),
+     xlab = expression(lambda), ylab = "Power",
+     main = "lambda vs Power w/ Uniform Distribution Miss-specification")
+```
+
+```{r}
+plot(lambdas, fdps_unif, type = "o", col = "red", pch = 16, lty = 1,ylim=c(0,1),
+     xlab = expression(lambda), ylab = "FDP",
+     main = "lambda vs FDP w/ Uniform Distribution Miss-specification")
+```
+# repeated analysis tests
+
+```{r}
+
+# Define parameters
+n = 1000  # Number of samples
+p = 1000  # Number of features
+relevant_count = 100  # Number of relevant features
+amplitude = 7.5  # Amplitude of non-zero coefficients
+lambdas = c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1)  # Lambda values
+num_reps = 5  # Number of repetitions per lambda
+
+# Initialize vectors to store results for RF and Lasso
+fdp_means_rf = c()
+power_means_rf = c()
+fdp_ci_lower_rf = c()
+fdp_ci_upper_rf = c()
+power_ci_lower_rf = c()
+power_ci_upper_rf = c()
+
+fdp_means_lasso = c()
+power_means_lasso = c()
+fdp_ci_lower_lasso = c()
+fdp_ci_upper_lasso = c()
+power_ci_lower_lasso = c()
+power_ci_upper_lasso = c()
+
+# Loop over lambda values
+for (lambda in lambdas) {
+  print(paste("Processing lambda:", lambda))
+  
+  fdp_repeats_rf = c()
+  power_repeats_rf = c()
+  fdp_repeats_lasso = c()
+  power_repeats_lasso = c()
+  
+  # Repeat the experiment 5 times
+  for (i in 1:num_reps) {
+    # Generate X matrix with mixed distributions
+    is_t_dist = runif(p) < lambda  # Boolean vector: which columns should use uniform distribution
+    X = matrix(0, n, p)
+    for (j in 1:p) {
+      if (is_t_dist[j]) {
+        X[, j] = runif(n, min = -sqrt(3), max = sqrt(3))  # Uniform distribution
+      } else {
+        X[, j] = rnorm(n)  # Normal distribution
+      }
+    }
+    
+    # Generate y and beta
+    nonzero = sample(p, relevant_count)
+    beta = amplitude * (1:p %in% nonzero) / sqrt(n)
+    y = X %*% beta + rnorm(n)
+    
+    # Apply knockoff filter with Random Forest statistic
+    result_rf <- knockoff.filter(X, y, statistic = stat.random_forest)
+    current_fdp_rf <- fdp(result_rf$selected, beta)  # Compute FDP for RF
+    current_power_rf <- power(result_rf$selected, beta)  # Compute Power for RF
+    fdp_repeats_rf <- c(fdp_repeats_rf, current_fdp_rf)
+    power_repeats_rf <- c(power_repeats_rf, current_power_rf)
+    
+    # Apply knockoff filter with Lasso statistic
+    result_lasso <- knockoff.filter(X, y)
+    current_fdp_lasso <- fdp(result_lasso$selected, beta)  # Compute FDP for Lasso
+    current_power_lasso <- power(result_lasso$selected, beta)  # Compute Power for Lasso
+    fdp_repeats_lasso <- c(fdp_repeats_lasso, current_fdp_lasso)
+    power_repeats_lasso <- c(power_repeats_lasso, current_power_lasso)
+  }
+  
+  # Compute mean and confidence intervals for RF
+  mean_fdp_rf <- mean(fdp_repeats_rf)
+  mean_power_rf <- mean(power_repeats_rf)
+  sd_fdp_rf <- sd(fdp_repeats_rf)
+  sd_power_rf <- sd(power_repeats_rf)
+  se_fdp_rf <- sd_fdp_rf / sqrt(num_reps)
+  se_power_rf <- sd_power_rf / sqrt(num_reps)
+  ci_fdp_rf <- 1.96 * se_fdp_rf
+  ci_power_rf <- 1.96 * se_power_rf
+  
+  # Store results for RF
+  fdp_means_rf <- c(fdp_means_rf, mean_fdp_rf)
+  power_means_rf <- c(power_means_rf, mean_power_rf)
+  fdp_ci_lower_rf <- c(fdp_ci_lower_rf, pmax(mean_fdp_rf - ci_fdp_rf, 0))  # Truncate lower bound
+  fdp_ci_upper_rf <- c(fdp_ci_upper_rf, pmin(mean_fdp_rf + ci_fdp_rf, 1))  # Truncate upper bound
+  power_ci_lower_rf <- c(power_ci_lower_rf, pmax(mean_power_rf - ci_power_rf, 0))  # Truncate lower bound
+  power_ci_upper_rf <- c(power_ci_upper_rf, pmin(mean_power_rf + ci_power_rf, 1))  # Truncate upper bound
+  
+  # Compute mean and confidence intervals for Lasso
+  mean_fdp_lasso <- mean(fdp_repeats_lasso)
+  mean_power_lasso <- mean(power_repeats_lasso)
+  sd_fdp_lasso <- sd(fdp_repeats_lasso)
+  sd_power_lasso <- sd(power_repeats_lasso)
+  se_fdp_lasso <- sd_fdp_lasso / sqrt(num_reps)
+  se_power_lasso <- sd_power_lasso / sqrt(num_reps)
+  ci_fdp_lasso <- 1.96 * se_fdp_lasso
+  ci_power_lasso <- 1.96 * se_power_lasso
+  
+  # Store results for Lasso
+  fdp_means_lasso <- c(fdp_means_lasso, mean_fdp_lasso)
+  power_means_lasso <- c(power_means_lasso, mean_power_lasso)
+  fdp_ci_lower_lasso <- c(fdp_ci_lower_lasso, pmax(mean_fdp_lasso - ci_fdp_lasso, 0))  # Truncate lower bound
+  fdp_ci_upper_lasso <- c(fdp_ci_upper_lasso, pmin(mean_fdp_lasso + ci_fdp_lasso, 1))  # Truncate upper bound
+  power_ci_lower_lasso <- c(power_ci_lower_lasso, pmax(mean_power_lasso - ci_power_lasso, 0))  # Truncate lower bound
+  power_ci_upper_lasso <- c(power_ci_upper_lasso, pmin(mean_power_lasso + ci_power_lasso, 1))  # Truncate upper bound
+}
+
+# Plot Mean FDP vs Lambda (Combined Plot)
+plot(lambdas, fdp_means_rf, type = "o", col = "darkgreen", pch = 16, lty = 2,
+     xlab = "Lambda", ylab = "Mean FDP",
+     main = "Mean FDP vs Lambda",
+     ylim = c(0, 1))  # Ensure y-axis is bounded between 0 and 1
+
+# Add RF confidence intervals
+arrows(lambdas, fdp_ci_lower_rf, lambdas, fdp_ci_upper_rf,
+       col = "darkgreen", angle = 90, code = 3, length = 0.1)
+
+# Add Lasso results
+lines(lambdas, fdp_means_lasso, type = "o", col = "red", pch = 16, lty = 1)
+
+# Add Lasso confidence intervals
+arrows(lambdas, fdp_ci_lower_lasso, lambdas, fdp_ci_upper_lasso,
+       col = "red", angle = 90, code = 3, length = 0.1)
+
+# Add legend
+legend("topright", legend = c("Random Forest", "Lasso"),
+       col = c("darkgreen", "red"), pch = 16, lty = c(2, 1))
+
+# Plot Mean Power vs Lambda (Combined Plot)
+plot(lambdas, power_means_rf, type = "o", col = "darkgreen", pch = 16, lty = 2,
+     xlab = "Lambda", ylab = "Mean Power",
+     main = "Mean Power vs Lambda",
+     ylim = c(0, 1))  # Ensure y-axis is bounded between 0 and 1
+
+# Add RF confidence intervals
+arrows(lambdas, power_ci_lower_rf, lambdas, power_ci_upper_rf,
+       col = "darkgreen", angle = 90, code = 3, length = 0.1)
+
+# Add Lasso results
+lines(lambdas, power_means_lasso, type = "o", col = "red", pch = 16, lty = 1)
+
+# Add Lasso confidence intervals
+arrows(lambdas, power_ci_lower_lasso, lambdas, power_ci_upper_lasso,
+       col = "red", angle = 90, code = 3, length = 0.1)
+
+# Add legend
+legend("bottomright", legend = c("Random Forest", "Lasso"),
+       col = c("darkgreen", "red"), pch = 16, lty = c(2, 1))
+```
+
+
+# Cross-Sectional analysis 
+
+# lbd = 0.25
+```{r}
+unif_q_results_fdp_0.25 = c()
+unif_q_results_power_0.25 = c()
+lbd = 0.25
+q_s = c(0.05,0.1,0.2,0.3,0.4,0.5)
+is_t_dist = runif(p) < lbd  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = runif(n, min=-1*sqrt(3), max=1*sqrt(3))  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+  }
+y = y.sample(X)
+X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+for (q in q_s) {
+  print(paste('Current q:',q))
+  t = knockoff.threshold(W, fdr=q, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  unif_q_results_fdp_0.25 = c(unif_q_results_fdp_0.25, result$fdp)
+  unif_q_results_power_0.25 = c(unif_q_results_power_0.25, result$power)
+}
+
+```
+
+
+# lbd = 0.5
+```{r}
+unif_q_results_fdp_0.5 = c()
+unif_q_results_power_0.5 = c()
+lbd = 0.5
+q_s = c(0.05,0.1,0.2,0.3,0.4,0.5)
+is_t_dist = runif(p) < lbd  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = runif(n, min=-1*sqrt(3), max=1*sqrt(3))  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+  }
+y = y.sample(X)
+X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+for (q in q_s) {
+  print(paste('Current q:',q))
+  t = knockoff.threshold(W, fdr=q, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  unif_q_results_fdp_0.5 = c(unif_q_results_fdp_0.5, result$fdp)
+  unif_q_results_power_0.5 = c(unif_q_results_power_0.5, result$power)
+}
+```
+# lbd = 0.75
+```{r}
+unif_q_results_fdp_0.75 = c()
+unif_q_results_power_0.75 = c()
+lbd = 0.75
+q_s = c(0.05,0.1,0.2,0.3,0.4,0.5)
+is_t_dist = runif(p) < lbd  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = runif(n, min=-1*sqrt(3), max=1*sqrt(3))  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+  }
+y = y.sample(X)
+X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+for (q in q_s) {
+  print(paste('Current q:',q))
+  t = knockoff.threshold(W, fdr=q, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  unif_q_results_fdp_0.75 = c(unif_q_results_fdp_0.75, result$fdp)
+  unif_q_results_power_0.75 = c(unif_q_results_power_0.75, result$power)
+}
+```
+
+# lbd = 1
+```{r}
+unif_q_results_fdp_1.0 = c()
+unif_q_results_power_1.0 = c()
+lbd = 1.0
+q_s = c(0.05,0.1,0.2,0.3,0.4,0.5)
+is_t_dist = runif(p) < lbd  # Boolean vector: which columns should use t-distribution
+  for (j in 1:p) {
+    if (is_t_dist[j]) {
+      X[, j] = runif(n, min=-1*sqrt(3), max=1*sqrt(3))  # Generate all t-distributed values at once
+    } else {
+      X[, j] = rnorm(n)  # Generate all normal values at once
+    }
+  }
+y = y.sample(X)
+X_k = create.gaussian(X, mu, Sigma, diag_s=diag_s)
+W = stat.lasso_coefdiff(X=X, X_k=X_k, y=y)
+for (q in q_s) {
+  print(paste('Current q:',q))
+  t = knockoff.threshold(W, fdr=q, offset=0)
+  selected = which(W >= t)
+  result = list(fdp = fdp(selected,beta), power = power(selected,beta))
+  
+  unif_q_results_fdp_1.0 = c(unif_q_results_fdp_1.0, result$fdp)
+  unif_q_results_power_1.0 = c(unif_q_results_power_1.0, result$power)
+}
+```
+
+
+```{r}
+q_s = c(0.05, 0.1, 0.2, 0.3, 0.4, 0.5)
+plot(q_s, unif_q_results_power_0.25, type = "o", col = "blue", pch = 16, lty = 1, ylim = c(0,1),
+     xlab = 'q', ylab = "Power",
+     main = expression("q vs Power for varying levels of Miss-Specification w/" ~ U(-sqrt(3), sqrt(3))))
+
+lines(q_s, unif_q_results_power_0.5, type = 'o', col = 'green')
+lines(q_s, unif_q_results_power_0.75, type = 'o', col = 'black')
+lines(q_s, unif_q_results_power_1.0, type = 'o', col = 'red')
+
+# Adding the legend with properly formatted labels
+legend("bottomright", legend = c(expression(lambda == 0.25), 
+                                 expression(lambda == 0.50), 
+                                 expression(lambda == 0.75), 
+                                 expression(lambda == 1.0)), 
+       col = c("blue", "green", "black", "red"), 
+       pch = 16, lty = 1)
+
+
+```
+```{r}
+q_s = c(0.05, 0.1, 0.2, 0.3, 0.4, 0.5)
+plot(q_s, unif_q_results_fdp_0.25, type = "o", col = "blue", pch = 16, lty = 1, ylim = c(0,1),
+     xlab = 'q', ylab = "FDP",
+     main = expression("q vs FDP for varying levels of Miss-Specification w/" ~ U(-sqrt(3), sqrt(3))))
+
+lines(q_s, unif_q_results_fdp_0.5, type = 'o', col = 'green')
+lines(q_s, unif_q_results_fdp_0.75, type = 'o', col = 'black')
+lines(q_s, unif_q_results_fdp_1.0, type = 'o', col = 'red')
+
+# Adding the legend with properly formatted labels
+legend("bottomright", legend = c(expression(lambda == 0.25), 
+                                 expression(lambda == 0.50), 
+                                 expression(lambda == 0.75), 
+                                 expression(lambda == 1.0)), 
+       col = c("blue", "green", "black", "red"), 
+       pch = 16, lty = 1)
+
+```
